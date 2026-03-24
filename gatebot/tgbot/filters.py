@@ -1,11 +1,10 @@
-# tgbot/filters/superuser.py
 from aiogram.filters import BaseFilter
 from aiogram.types import Message, CallbackQuery
 
 from dishka import FromDishka
 from dishka.integrations.aiogram import inject
 
-from config.settings import Settings
+from core.config.settings import Settings
 
 
 class IsSuperuser(BaseFilter):

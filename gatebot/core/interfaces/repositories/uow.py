@@ -4,10 +4,12 @@ from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from core.interfaces.repositories.user import UserRepository
+    from core.interfaces.repositories.payment import PaymentRepository
 
 
 class UnitOfWork(ABC):
     users: "UserRepository"
+    payments: "PaymentRepository"
 
     @abstractmethod
     async def commit(self) -> None: ...

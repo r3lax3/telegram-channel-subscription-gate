@@ -10,7 +10,7 @@ from dishka import FromDishka
 from dishka.integrations.aiogram_dialog import inject
 
 from tgbot.states import AdminSG
-from core.interfaces.uow import UnitOfWork
+from core.interfaces.repositories.uow import UnitOfWork
 
 
 @inject
@@ -19,7 +19,7 @@ async def approve_broadcast(
     widget: Button,
     manager: DialogManager,
     uow: FromDishka[UnitOfWork],
-    bot: FromDishka[Bot]
+    bot: FromDishka[Bot],
 ):
     """Send broadcast to all users."""
     broadcast_text = manager.dialog_data.get("broadcast_text")
@@ -30,14 +30,14 @@ async def approve_broadcast(
         try:
             if broadcast_photo_file_id:
                 await bot.send_photo(
-                    chat_id=user.id,
+                    chat_id=user.telegram_id,
                     photo=broadcast_photo_file_id,
-                    caption=broadcast_text
+                    caption=broadcast_text,
                 )
             elif broadcast_text:
                 await bot.send_message(
-                    chat_id=user.id,
-                    text=broadcast_text
+                    chat_id=user.telegram_id,
+                    text=broadcast_text,
                 )
             else:
                 await callback.answer("No broadcast data!")
@@ -52,10 +52,11 @@ async def approve_broadcast(
     manager.dialog_data.pop("broadcast_text", None)
     manager.dialog_data.pop("broadcast_photo_file_id", None)
 
+
 async def clear_broadcast_content(
     callback: CallbackQuery,
     widget: Button,
-    manager: DialogManager
+    manager: DialogManager,
 ):
     """Clear broadcast content and stay on broadcast_menu."""
     manager.dialog_data.pop("broadcast_text", None)
@@ -69,7 +70,7 @@ async def clear_broadcast_content(
 async def broadcast_content_handler(
     message: Message,
     widget: MessageInput,
-    manager: DialogManager
+    manager: DialogManager,
 ):
     """Handle text message or photo (with optional caption) for broadcast."""
     if message.photo:
@@ -81,4 +82,3 @@ async def broadcast_content_handler(
         manager.dialog_data.pop("broadcast_photo_file_id", None)  # Clear photo if text-only
 
     manager.dialog_data["have_broadcast_content"] = True
-
