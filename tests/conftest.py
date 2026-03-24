@@ -27,7 +27,7 @@ def settings():
         database_url="sqlite+aiosqlite:///:memory:",
         redis_url="redis://localhost:6379",
         bot_token="test:token",
-        owner_id=12345678,
+        owner_ids=[12345678],
         support_link="https://t.me/test",
         channel_id=-100123456789,
         subscription_price=1234,
