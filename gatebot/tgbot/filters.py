@@ -14,4 +14,4 @@ class IsSuperuser(BaseFilter):
         event: Message | CallbackQuery,
         settings: FromDishka[Settings],
     ) -> bool:
-        return event.from_user.id == settings.owner_id
+        return event.from_user.id in settings.owner_ids

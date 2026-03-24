@@ -7,7 +7,7 @@ class TestSettings:
     def test_settings_from_kwargs(self, settings):
         assert settings.debug is True
         assert settings.bot_token == "test:token"
-        assert settings.owner_id == 12345678
+        assert settings.owner_ids == [12345678]
         assert settings.channel_id == -100123456789
         assert settings.subscription_price == 1234
         assert settings.subscription_days == 30
@@ -22,7 +22,7 @@ class TestSettings:
             database_url="sqlite:///:memory:",
             redis_url="redis://localhost:6379",
             bot_token="test:token",
-            owner_id=1,
+            owner_ids=[1],
             support_link="https://t.me/test",
             channel_id=-100123,
             _env_file=None,

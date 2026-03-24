@@ -13,7 +13,7 @@ class Settings(BaseSettings):
     database_url: str
     redis_url: str
     bot_token: str
-    owner_id: int
+    owner_ids: list[int]
 
     support_link: str
     channel_description_link: str = ""
