@@ -1,11 +1,13 @@
+from typing import AsyncIterable
+
 from dishka import (
     AsyncContainer,
     make_async_container,
     STRICT_VALIDATION,
+    Provider,
+    Scope,
+    provide,
 )
-from typing import AsyncIterable
-
-from dishka import Provider, Scope, provide, AsyncContainer
 from dishka.integrations.aiogram import setup_dishka
 
 from aiogram import Dispatcher, Bot
@@ -25,6 +27,8 @@ from sqlalchemy.ext.asyncio import (
 
 from core.config.settings import Settings
 from core.interfaces.uow import UnitOfWork
+from core.services.payment import PaymentService
+from core.services.subscription import SubscriptionService
 from infrastructure.database.uow import SQLUnitOfWork
 from tgbot.handlers import setup_handlers
 
@@ -63,7 +67,7 @@ class SessionProvider(Provider):
     @provide
     async def create_session(
         self,
-        session_factory: async_sessionmaker[AsyncSession]
+        session_factory: async_sessionmaker[AsyncSession],
     ) -> AsyncIterable[AsyncSession]:
         async with session_factory() as session:
             yield session
@@ -73,11 +77,24 @@ class UOWProvider(Provider):
     scope = Scope.REQUEST
 
     @provide
-    def create_uow(
-        self,
-        session: AsyncSession
-    ) -> UnitOfWork:
+    def create_uow(self, session: AsyncSession) -> UnitOfWork:
         return SQLUnitOfWork(session)
+
+
+class ServiceProvider(Provider):
+    scope = Scope.REQUEST
+
+    @provide
+    def create_payment_service(
+        self, uow: UnitOfWork, settings: Settings
+    ) -> PaymentService:
+        return PaymentService(uow, settings)
+
+    @provide
+    def create_subscription_service(
+        self, uow: UnitOfWork, bot: Bot, settings: Settings
+    ) -> SubscriptionService:
+        return SubscriptionService(uow, bot, settings)
 
 
 class DispatcherProvider(Provider):
@@ -87,7 +104,7 @@ class DispatcherProvider(Provider):
     def create_storage(self, redis: Redis) -> BaseStorage:
         return RedisStorage(
             redis=redis,
-            key_builder=DefaultKeyBuilder(with_destiny=True)
+            key_builder=DefaultKeyBuilder(with_destiny=True),
         )
 
     @provide
@@ -101,7 +118,7 @@ class DispatcherProvider(Provider):
         setup_dishka(container=dishka, router=dp, auto_inject=True)
 
         bg_manager_factory = setup_handlers(dp)
-        dp["bg_manager_factory"] = bg_manager_factory  # save it to dp so i can acces to it
+        dp["bg_manager_factory"] = bg_manager_factory
 
         return dp
 
@@ -110,10 +127,7 @@ class RedisProvider(Provider):
     scope = Scope.APP
 
     @provide
-    def create_redis(
-        self,
-        settings: Settings
-    ) -> Redis:
+    def create_redis(self, settings: Settings) -> Redis:
         return Redis.from_url(settings.redis_url)
 
 
@@ -129,10 +143,7 @@ class BgManagerProvider(Provider):
     scope = Scope.APP
 
     @provide
-    def create_bg_manager_factory(
-        self,
-        dp: Dispatcher,
-    ) -> BgManagerFactory:
+    def create_bg_manager_factory(self, dp: Dispatcher) -> BgManagerFactory:
         return dp["bg_manager_factory"]
 
 
@@ -142,15 +153,16 @@ def get_all_dishka_providers() -> list[Provider]:
         DatabaseProvider(),
         SessionProvider(),
         UOWProvider(),
+        ServiceProvider(),
         DispatcherProvider(),
         RedisProvider(),
-        BotProvider()
+        BotProvider(),
     ]
 
 
 def create_dishka() -> AsyncContainer:
     container = make_async_container(
         *get_all_dishka_providers(),
-        validation_settings=STRICT_VALIDATION
+        validation_settings=STRICT_VALIDATION,
     )
     return container

@@ -30,7 +30,7 @@ services:
 
   bot:
     build:
-      context: ./bot
+      context: ./gatebot
       dockerfile: Dockerfile
     container_name: telegram_bot
     restart: unless-stopped
@@ -39,6 +39,8 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+    ports:
+      - "8080:8080"
     volumes:
       - ./logs:/app/logs
     env_file:

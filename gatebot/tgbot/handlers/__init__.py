@@ -1,13 +1,13 @@
-from aiogram import Dispatcher
+from aiogram import Dispatcher, Router
 from aiogram_dialog.api.protocols import BgManagerFactory
 
 from tgbot.handlers import base, errors, dialogs
 
 
-async def setup_handlers(dp: Dispatcher) -> BgManagerFactory:
+def setup_handlers(dp: Dispatcher) -> BgManagerFactory:
     dp.include_routers(
         errors.setup(),
-        base.setup()
+        base.setup(),
     )
 
     bg_manager_factory = dialogs.setup(dp)
