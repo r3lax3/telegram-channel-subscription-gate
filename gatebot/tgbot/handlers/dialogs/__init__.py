@@ -8,10 +8,12 @@ from aiogram_dialog.manager.message_manager import MessageManager
 from . import superuser, user
 
 
-def setup(dp: Dispatcher) -> BgManagerFactory:
+def setup(dp: Dispatcher, base_router: Router | None = None) -> BgManagerFactory:
     dialogs_router = Router()
     dialogs_router.message.filter(F.chat.type == ChatType.PRIVATE)
 
+    if base_router is not None:
+        dialogs_router.include_router(base_router)
     dialogs_router.include_router(superuser.setup())
     dialogs_router.include_router(user.setup())
 
