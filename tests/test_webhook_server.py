@@ -1,12 +1,9 @@
-import hashlib
-import hmac
-
 import pytest
 import pytest_asyncio
-from aiohttp import web
-from aiohttp.test_utils import AioHTTPTestCase, TestClient, TestServer
+from aiohttp.test_utils import TestClient, TestServer
 from unittest.mock import AsyncMock, MagicMock, patch
 
+from infrastructure.prodamus.client import _create_hmac
 from infrastructure.webhook.server import WebhookServer
 
 
@@ -26,6 +23,10 @@ async def client(webhook_app):
         yield client
 
 
+def _sign_data(data: dict, secret: str) -> str:
+    return _create_hmac(data, secret)
+
+
 @pytest.mark.asyncio
 class TestWebhookEndpoints:
     async def test_health_check(self, client):
@@ -42,25 +43,31 @@ class TestWebhookEndpoints:
         )
         assert resp.status == 403
 
-    async def test_webhook_missing_customer_extra(self, client, settings):
-        data = {"order_id": "123", "customer_extra": "0"}
-        sorted_items = sorted(data.items())
-        check_string = "&".join(f"{k}={v}" for k, v in sorted_items)
-        signature = hmac.new(
-            settings.prodamus_secret_key.encode(),
-            check_string.encode(),
-            hashlib.sha256,
-        ).hexdigest()
+    async def test_webhook_non_success_status(self, client, settings):
+        data = {
+            "order_id": "123",
+            "customer_extra": "111111",
+            "payment_status": "pending",
+        }
+        signature = _sign_data(data, settings.prodamus_secret_key)
+        data["sign"] = signature
 
-        resp = await client.post(
-            "/prodamus/webhook",
-            data=data,
-            headers={"Sign": signature},
-        )
+        resp = await client.post("/prodamus/webhook", data=data)
+        assert resp.status == 200
+
+    async def test_webhook_missing_customer_extra(self, client, settings):
+        data = {
+            "order_id": "123",
+            "customer_extra": "0",
+            "payment_status": "success",
+        }
+        signature = _sign_data(data, settings.prodamus_secret_key)
+        data["sign"] = signature
+
+        resp = await client.post("/prodamus/webhook", data=data)
         assert resp.status == 400
 
     async def test_webhook_valid_request(self, client, settings, uow):
-        # Create a user and payment first
         from infrastructure.database.models import Payment
 
         user = await uow.users.get_or_create(111111, "test")
@@ -75,18 +82,13 @@ class TestWebhookEndpoints:
         await uow.payments.create(payment)
         await uow.commit()
 
-        data = {"order_id": "webhook_order_1", "customer_extra": "111111"}
-        sorted_items = sorted(data.items())
-        check_string = "&".join(f"{k}={v}" for k, v in sorted_items)
-        signature = hmac.new(
-            settings.prodamus_secret_key.encode(),
-            check_string.encode(),
-            hashlib.sha256,
-        ).hexdigest()
+        data = {
+            "order_id": "webhook_order_1",
+            "customer_extra": "111111",
+            "payment_status": "success",
+        }
+        signature = _sign_data(data, settings.prodamus_secret_key)
+        data["sign"] = signature
 
-        resp = await client.post(
-            "/prodamus/webhook",
-            data=data,
-            headers={"Sign": signature},
-        )
+        resp = await client.post("/prodamus/webhook", data=data)
         assert resp.status == 200
