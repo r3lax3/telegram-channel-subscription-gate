@@ -3,16 +3,23 @@ import logging
 
 from aiogram import Dispatcher, Bot
 from dishka import make_async_container
-from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
+from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
 from core.config.settings import Settings
 from core.runner import AppRunner
 from core.services.worker import subscription_worker
+from infrastructure.database.models import Base
 from infrastructure.webhook.server import WebhookServer
 from main_factory import get_all_dishka_providers
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+
+async def run_migrations(engine: AsyncEngine) -> None:
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.create_all)
+    logger.info("Database tables ensured")
 
 
 async def main():
@@ -24,6 +31,9 @@ async def main():
     bot = await dishka.get(Bot)
     settings = await dishka.get(Settings)
     session_factory = await dishka.get(async_sessionmaker[AsyncSession])
+    engine = await dishka.get(AsyncEngine)
+
+    await run_migrations(engine)
 
     await bot.delete_webhook(drop_pending_updates=True)
 
