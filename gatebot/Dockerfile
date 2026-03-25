@@ -15,4 +15,4 @@ RUN pip install --no-cache-dir \
 
 COPY . .
 
-CMD ["python", "main.py"]
+CMD ["sh", "-c", "alembic upgrade head && python main.py"]
