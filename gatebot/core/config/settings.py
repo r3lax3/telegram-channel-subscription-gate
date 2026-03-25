@@ -23,6 +23,7 @@ class Settings(BaseSettings):
 
     prodamus_domain: str = ""
     prodamus_secret_key: str = ""
+    bot_link: str = ""
 
     webhook_host: str = ""
     webhook_port: int = 8080

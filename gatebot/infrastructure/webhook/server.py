@@ -39,12 +39,17 @@ class WebhookServer:
             logger.exception("Failed to parse webhook data")
             return web.Response(status=400, text="Bad request")
 
-        signature = request.headers.get("Sign", "") or data_dict.pop("sign", "")
+        signature = data_dict.pop("sign", "") or request.headers.get("Sign", "")
         if not ProdamusClient.verify_signature(
             data_dict, str(signature), self.settings.prodamus_secret_key
         ):
             logger.warning("Invalid webhook signature")
             return web.Response(status=403, text="Invalid signature")
+
+        payment_status = data_dict.get("payment_status")
+        if payment_status != "success":
+            logger.info("Webhook ignored: payment_status=%s", payment_status)
+            return web.Response(status=200, text="OK")
 
         telegram_id_str = data_dict.get("customer_extra", "0")
         try:

@@ -34,6 +34,7 @@ def settings():
         subscription_days=30,
         prodamus_domain="test.payform.ru",
         prodamus_secret_key="test_secret",
+        bot_link="https://t.me/TestBot",
         webhook_host="https://test.com",
         webhook_port=8080,
     )
