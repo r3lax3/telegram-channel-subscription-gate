@@ -1,23 +1,23 @@
 services:
   postgres:
     image: postgres:16-alpine
-    container_name: telegram_bot_postgres
+    container_name: tgbot_postgres
     restart: unless-stopped
     environment:
-      POSTGRES_USER: telegram_bot
+      POSTGRES_USER: tgbot_user
       POSTGRES_PASSWORD: strong_password
-      POSTGRES_DB: telegram_bot_db
+      POSTGRES_DB: tgbot_db
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-telegram_bot}"]
+      test: ["CMD-SHELL", "pg_isready -U tgbot_user -d tgbot_db"]
       interval: 10s
       timeout: 5s
       retries: 5
 
   redis:
     image: redis:7-alpine
-    container_name: telegram_bot_redis
+    container_name: tgbot_redis
     restart: unless-stopped
     command: redis-server --appendonly yes
     volumes:
@@ -32,7 +32,7 @@ services:
     build:
       context: ./gatebot
       dockerfile: Dockerfile
-    container_name: telegram_bot
+    container_name: tgbot
     restart: unless-stopped
     depends_on:
       postgres:

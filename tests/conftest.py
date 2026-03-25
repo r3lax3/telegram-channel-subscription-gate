@@ -32,7 +32,6 @@ def settings():
         channel_id=-100123456789,
         subscription_price=1234,
         subscription_days=30,
-        prodamus_api_key="test_key",
         prodamus_domain="test.payform.ru",
         prodamus_secret_key="test_secret",
         webhook_host="https://test.com",

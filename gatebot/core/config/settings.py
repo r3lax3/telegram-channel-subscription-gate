@@ -16,13 +16,11 @@ class Settings(BaseSettings):
     owner_ids: list[int]
 
     support_link: str
-    channel_description_link: str = ""
 
     channel_id: int
     subscription_price: int = 1234
     subscription_days: int = 30
 
-    prodamus_api_key: str = ""
     prodamus_domain: str = ""
     prodamus_secret_key: str = ""
 
