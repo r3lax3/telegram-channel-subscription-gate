@@ -43,12 +43,14 @@ class WebhookServer:
         if not ProdamusClient.verify_signature(
             data_dict, str(signature), self.settings.prodamus_secret_key
         ):
+            logger.warning("Invalid webhook signature")
             return web.Response(status=403, text="Invalid signature")
 
         telegram_id_str = data_dict.get("customer_extra", "0")
         try:
             telegram_id = int(telegram_id_str)
         except (ValueError, TypeError):
+            logger.warning("Invalid customer_extra: %s", telegram_id_str)
             return web.Response(status=400, text="Invalid customer_extra")
 
         if not telegram_id:

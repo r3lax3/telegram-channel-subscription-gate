@@ -33,18 +33,22 @@ class PaymentService:
             amount=self.settings.subscription_price,
             customer_extra=str(telegram_id),
         )
+        logger.info("Payment link created for user %s, order %s", telegram_id, order_id)
         return link
 
     async def process_webhook(self, data: dict) -> bool:
         order_id = data.get("order_id") or data.get("order_num")
         if not order_id:
+            logger.warning("Webhook ignored: missing order_id")
             return False
 
         payment = await self.uow.payments.get_by_order_id(str(order_id))
         if not payment or payment.status == "success":
+            logger.warning("Webhook ignored: order_id=%s not found or already processed", order_id)
             return False
 
         payment.status = "success"
         await self.uow.payments.update(payment)
         await self.uow.commit()
+        logger.info("Payment processed for order %s", order_id)
         return True

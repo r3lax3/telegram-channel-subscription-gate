@@ -59,6 +59,7 @@ async def subscription_worker(
                         )
 
                 await uow.commit()
+                logger.info("Worker cycle: %d expiring, %d expired", len(expiring), len(expired))
 
         except Exception:
             logger.exception("Worker iteration failed")

@@ -48,7 +48,7 @@ class DatabaseProvider(Provider):
     def create_engine(self, settings: Settings) -> AsyncEngine:
         return create_async_engine(
             settings.database_url,
-            echo=settings.debug,
+            echo=False,
             pool_pre_ping=True,
         )
 

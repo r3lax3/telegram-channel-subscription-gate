@@ -33,6 +33,10 @@ class SubscriptionService:
             chat_id=self.settings.channel_id,
             member_limit=1,
         )
+        logger.info(
+            "Subscription activated for user %s until %s",
+            telegram_id, user.subscription_end_date,
+        )
         return invite_link.invite_link
 
     async def kick_user(self, telegram_id: int) -> None:
@@ -41,6 +45,7 @@ class SubscriptionService:
             await self.bot.unban_chat_member(
                 self.settings.channel_id, telegram_id, only_if_banned=True
             )
+            logger.info("User %s kicked from channel", telegram_id)
         except Exception:
             logger.exception("Failed to kick user %s from channel", telegram_id)
 
