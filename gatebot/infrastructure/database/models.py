@@ -27,13 +27,10 @@ class User(Base):
 class Payment(Base):
     __tablename__ = "payments"
 
-    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    id: Mapped[int] = mapped_column(primary_key=True)
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
     amount: Mapped[int] = mapped_column()
     status: Mapped[str] = mapped_column(String(20), default="pending")
-    prodamus_order_id: Mapped[str | None] = mapped_column(
-        String(255), unique=True, nullable=True
-    )
     created_at: Mapped[datetime] = mapped_column(server_default=func.now())
 
     user: Mapped["User"] = relationship(back_populates="payments")

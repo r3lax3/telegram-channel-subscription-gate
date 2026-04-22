@@ -74,16 +74,16 @@ class TestWebhookEndpoints:
         await uow.commit()
 
         payment = Payment(
+            id=3000000001,
             user_id=user.id,
             amount=1234,
             status="pending",
-            prodamus_order_id="webhook_order_1",
         )
         await uow.payments.create(payment)
         await uow.commit()
 
         data = {
-            "order_id": "webhook_order_1",
+            "order_id": "3000000001",
             "customer_extra": "111111",
             "payment_status": "success",
         }

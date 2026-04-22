@@ -22,9 +22,9 @@ class ProdamusClient:
 
     async def create_payment_link(
         self,
-        order_id: str,
+        order_id: int,
         amount: int,
-        customer_extra: str
+        customer_extra: int,
     ) -> str:
         expires_at = datetime.utcnow() + timedelta(hours=LINK_EXPIRATION_HOURS)
 

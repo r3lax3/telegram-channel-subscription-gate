@@ -18,9 +18,9 @@ class PaymentService:
         from infrastructure.prodamus.client import ProdamusClient
 
         user = await self.uow.users.get_or_create(telegram_id, username)
-        order_id = f"{int(time.time())}"
+        order_id = int(time.time())
         payment = Payment(
-            prodamus_order_id=order_id,
+            id=order_id,
             user_id=user.id,
             amount=self.settings.subscription_price,
             status="pending",
@@ -32,7 +32,7 @@ class PaymentService:
         link = await client.create_payment_link(
             order_id=order_id,
             amount=self.settings.subscription_price,
-            customer_extra=str(telegram_id),
+            customer_extra=telegram_id,
         )
         logger.info("Payment link created for user %s, order %s", telegram_id, order_id)
         return link
@@ -44,7 +44,7 @@ class PaymentService:
             logger.warning("Webhook ignored: missing order_id")
             return False
 
-        payment = await self.uow.payments.get_by_order_id(str(order_id))
+        payment = await self.uow.payments.get_by_order_id(int(order_id))
         if not payment or payment.status == "success":
             logger.warning("Webhook ignored: order_id=%s not found or already processed", order_id)
             return False

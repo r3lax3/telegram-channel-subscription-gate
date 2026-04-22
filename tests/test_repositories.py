@@ -103,15 +103,15 @@ class TestPaymentRepository:
         await uow.commit()
 
         payment = Payment(
+            id=1000000001,
             user_id=user.id,
             amount=1234,
             status="pending",
-            prodamus_order_id="order_1",
         )
         created = await uow.payments.create(payment)
         await uow.commit()
 
-        assert created.id is not None
+        assert created.id == 1000000001
         assert created.amount == 1234
 
     async def test_get_by_order_id(self, uow):
@@ -119,20 +119,20 @@ class TestPaymentRepository:
         await uow.commit()
 
         payment = Payment(
+            id=1000000002,
             user_id=user.id,
             amount=999,
             status="pending",
-            prodamus_order_id="order_find_me",
         )
         await uow.payments.create(payment)
         await uow.commit()
 
-        found = await uow.payments.get_by_order_id("order_find_me")
+        found = await uow.payments.get_by_order_id(1000000002)
         assert found is not None
         assert found.amount == 999
 
     async def test_get_by_order_id_not_found(self, uow):
-        found = await uow.payments.get_by_order_id("nonexistent")
+        found = await uow.payments.get_by_order_id(9999999999)
         assert found is None
 
     async def test_update_payment(self, uow):
@@ -140,10 +140,10 @@ class TestPaymentRepository:
         await uow.commit()
 
         payment = Payment(
+            id=1000000003,
             user_id=user.id,
             amount=500,
             status="pending",
-            prodamus_order_id="order_update",
         )
         await uow.payments.create(payment)
         await uow.commit()
@@ -152,5 +152,5 @@ class TestPaymentRepository:
         await uow.payments.update(payment)
         await uow.commit()
 
-        found = await uow.payments.get_by_order_id("order_update")
+        found = await uow.payments.get_by_order_id(1000000003)
         assert found.status == "success"
