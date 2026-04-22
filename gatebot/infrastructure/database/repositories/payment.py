@@ -13,7 +13,7 @@ class SQLPaymentRepository(BaseRepository, PaymentRepository):
 
     async def get_by_order_id(self, order_id: str) -> Payment | None:
         result = await self.session.execute(
-            select(Payment).where(Payment.id == order_id)
+            select(Payment).where(Payment.prodamus_order_id == order_id)
         )
         return result.scalar_one_or_none()
 

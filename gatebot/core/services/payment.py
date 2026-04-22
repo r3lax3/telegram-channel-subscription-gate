@@ -20,7 +20,7 @@ class PaymentService:
         user = await self.uow.users.get_or_create(telegram_id, username)
         order_id = f"{int(time.time())}"
         payment = Payment(
-            id=order_id,
+            prodamus_order_id=order_id,
             user_id=user.id,
             amount=self.settings.subscription_price,
             status="pending",
