@@ -62,7 +62,7 @@ class WebhookServer:
             processed = await payment_service.process_webhook(data_dict)
             if processed:
                 try:
-                    order_id = data_dict.get('order_id')
+                    order_id = int(data_dict.get('order_id'))
                     payment = await uow.payments.get_by_order_id(order_id)
                     telegram_id = payment.user_id
 

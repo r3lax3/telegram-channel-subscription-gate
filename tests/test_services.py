@@ -96,19 +96,19 @@ class TestPaymentService:
         await uow.commit()
 
         payment = Payment(
+            id=2000000001,
             user_id=user.id,
             amount=1234,
             status="pending",
-            prodamus_order_id="order_webhook_1",
         )
         await uow.payments.create(payment)
         await uow.commit()
 
         service = PaymentService(uow, settings)
-        result = await service.process_webhook({"order_id": "order_webhook_1"})
+        result = await service.process_webhook({"order_id": "2000000001"})
 
         assert result is True
-        updated = await uow.payments.get_by_order_id("order_webhook_1")
+        updated = await uow.payments.get_by_order_id(2000000001)
         assert updated.status == "success"
 
     async def test_process_webhook_already_processed(self, uow, settings):
@@ -116,22 +116,22 @@ class TestPaymentService:
         await uow.commit()
 
         payment = Payment(
+            id=2000000002,
             user_id=user.id,
             amount=1234,
             status="success",
-            prodamus_order_id="order_already_done",
         )
         await uow.payments.create(payment)
         await uow.commit()
 
         service = PaymentService(uow, settings)
-        result = await service.process_webhook({"order_id": "order_already_done"})
+        result = await service.process_webhook({"order_id": "2000000002"})
 
         assert result is False
 
     async def test_process_webhook_not_found(self, uow, settings):
         service = PaymentService(uow, settings)
-        result = await service.process_webhook({"order_id": "nonexistent_order"})
+        result = await service.process_webhook({"order_id": "9999999999"})
         assert result is False
 
     async def test_process_webhook_no_order_id(self, uow, settings):

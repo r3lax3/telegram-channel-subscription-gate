@@ -11,7 +11,7 @@ class SQLPaymentRepository(BaseRepository, PaymentRepository):
         await self.session.flush()
         return payment
 
-    async def get_by_order_id(self, order_id: str) -> Payment | None:
+    async def get_by_order_id(self, order_id: int) -> Payment | None:
         result = await self.session.execute(
             select(Payment).where(Payment.id == order_id)
         )

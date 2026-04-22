@@ -20,14 +20,14 @@ class TestUserModel:
 class TestPaymentModel:
     def test_create_payment(self):
         payment = Payment(
+            id=1234567890,
             user_id=1,
             amount=1234,
             status="pending",
-            prodamus_order_id="sub_123_1000",
         )
+        assert payment.id == 1234567890
         assert payment.amount == 1234
         assert payment.status == "pending"
-        assert payment.prodamus_order_id == "sub_123_1000"
 
     def test_payment_repr(self):
         payment = Payment(id=1, user_id=1, status="success")
