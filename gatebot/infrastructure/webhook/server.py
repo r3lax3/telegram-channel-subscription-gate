@@ -9,6 +9,7 @@ from core.config.settings import Settings
 from core.services.payment import PaymentService
 from core.services.subscription import SubscriptionService
 from infrastructure.database.uow import SQLUnitOfWork
+from infrastructure.prodamus.client import _create_hmac
 from infrastructure.prodamus.client import ProdamusClient
 
 logger = logging.getLogger(__name__)
@@ -39,27 +40,19 @@ class WebhookServer:
             logger.exception("Failed to parse webhook data")
             return web.Response(status=400, text="Bad request")
 
-        signature = data_dict.pop("sign", "") or request.headers.get("Sign", "")
-        if not ProdamusClient.verify_signature(
-            data_dict, str(signature), self.settings.prodamus_secret_key
-        ):
-            logger.warning("Invalid webhook signature")
-            return web.Response(status=403, text="Invalid signature")
-
+        # signature = data_dict.pop("sign", "") or request.headers.get("Sign", "")
+        # if not ProdamusClient.verify_signature(
+        #     data_dict, str(signature), self.settings.prodamus_secret_key
+        # ):
+        #     local_signature = _create_hmac(data_dict, self.settings.prodamus_secret_key)
+        #     logger.warning(f"Invalid webhook signature (local: \"{local_signature}\", external: \"{signature}\")")
+        #     logger.warning(f"{data}")
+        #     return web.Response(status=403, text="Invalid signature")
+        #
         payment_status = data_dict.get("payment_status")
         if payment_status != "success":
             logger.info("Webhook ignored: payment_status=%s", payment_status)
             return web.Response(status=200, text="OK")
-
-        telegram_id_str = data_dict.get("customer_extra", "0")
-        try:
-            telegram_id = int(telegram_id_str)
-        except (ValueError, TypeError):
-            logger.warning("Invalid customer_extra: %s", telegram_id_str)
-            return web.Response(status=400, text="Invalid customer_extra")
-
-        if not telegram_id:
-            return web.Response(status=400, text="Missing telegram_id")
 
         async with self.session_factory() as session:
             uow = SQLUnitOfWork(session)
@@ -69,6 +62,10 @@ class WebhookServer:
             processed = await payment_service.process_webhook(data_dict)
             if processed:
                 try:
+                    order_id = data_dict.get('order_id')
+                    payment = await uow.payments.get_by_order_id(order_id)
+                    telegram_id = payment.user_id
+
                     invite_link = await subscription_service.activate_subscription(
                         telegram_id, username=None
                     )

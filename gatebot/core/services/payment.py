@@ -1,3 +1,4 @@
+import json
 import time
 import logging
 
@@ -17,12 +18,12 @@ class PaymentService:
         from infrastructure.prodamus.client import ProdamusClient
 
         user = await self.uow.users.get_or_create(telegram_id, username)
-        order_id = f"sub_{telegram_id}_{int(time.time())}"
+        order_id = f"{int(time.time())}"
         payment = Payment(
+            id=order_id,
             user_id=user.id,
             amount=self.settings.subscription_price,
             status="pending",
-            prodamus_order_id=order_id,
         )
         await self.uow.payments.create(payment)
         await self.uow.commit()
@@ -37,6 +38,7 @@ class PaymentService:
         return link
 
     async def process_webhook(self, data: dict) -> bool:
+        json.dump(data, open("./data.json", "w"))
         order_id = data.get("order_id") or data.get("order_num")
         if not order_id:
             logger.warning("Webhook ignored: missing order_id")

@@ -21,7 +21,10 @@ class ProdamusClient:
         self.bot_link = settings.bot_link
 
     async def create_payment_link(
-        self, order_id: str, amount: int, customer_extra: str
+        self,
+        order_id: str,
+        amount: int,
+        customer_extra: str
     ) -> str:
         expires_at = datetime.utcnow() + timedelta(hours=LINK_EXPIRATION_HOURS)
 
@@ -58,7 +61,7 @@ class ProdamusClient:
 
     @staticmethod
     def verify_signature(data: dict, signature: str, secret: str) -> bool:
-        expected = _create_hmac(data, secret)
+        expected = Hmac.create(data, secret)
         return hmac.compare_digest(expected, signature)
 
 
@@ -74,6 +77,58 @@ def _create_hmac(data: dict, key: str) -> str:
         data_str.encode("utf-8"),
         hashlib.sha256,
     ).hexdigest()
+
+
+
+class Hmac:
+    @staticmethod
+    def create(data, key: str, algo='sha256'):
+        # Приведение всех значений к строкам и сортировка
+        data = Hmac._str_val_and_sort(data)
+        # Подготовка строки для хэширования
+        data_str = json.dumps(
+            data,
+            separators=(',', ':'),
+            ensure_ascii=False
+        ).replace('/', '\\/')
+
+        data_binary = data_str.encode('utf-8')
+
+        # Вычисление HMAC
+        return hmac.new(
+            key.encode('utf-8'),
+            data_binary,
+            algo
+        ).hexdigest()
+
+    @classmethod
+    def _str_val_and_sort(cls, data):
+        """Рекурсивно преобразует значения словаря в строки и сортирует ключи."""
+        data = cls._sort_object(data)
+        for item in list(data.keys()):
+            if isinstance(data[item], dict):  # Если значение является словарем
+                data[item] = cls._str_val_and_sort(data[item])
+            elif isinstance(data[item], list):  # Если значение является списком
+                # Преобразуем каждый элемент списка отдельно, если это необходимо
+                data[item] = [
+                    cls._str_val_and_sort(elem)
+                    if isinstance(elem, dict)
+                    else str(elem) for elem in data[item]
+                ]
+            else:
+                data[item] = str(data[item])
+
+        return data
+
+    @classmethod
+    def _sort_object(cls, obj):
+        """Возвращает новый словарь с отсортированными ключами."""
+        if not isinstance(obj, dict):
+            return obj
+
+        # Создаем новый словарь с тем же содержимым, но с отсортированными ключами
+        sorted_obj = {key: obj[key] for key in sorted(obj)}  # python3.7 или выше
+        return sorted_obj
 
 
 def _stringify_and_sort(data):
