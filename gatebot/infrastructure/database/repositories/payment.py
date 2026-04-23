@@ -17,5 +17,14 @@ class SQLPaymentRepository(BaseRepository, PaymentRepository):
         )
         return result.scalar_one_or_none()
 
+    async def get_latest_pending_by_user_id(self, user_id: int) -> Payment | None:
+        result = await self.session.execute(
+            select(Payment)
+            .where(Payment.user_id == user_id, Payment.status == "pending")
+            .order_by(Payment.created_at.desc(), Payment.id.desc())
+            .limit(1)
+        )
+        return result.scalar_one_or_none()
+
     async def update(self, payment: Payment) -> None:
         await self.session.merge(payment)
