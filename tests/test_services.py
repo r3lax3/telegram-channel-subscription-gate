@@ -107,7 +107,8 @@ class TestPaymentService:
         service = PaymentService(uow, settings)
         result = await service.process_webhook({"order_id": "2000000001"})
 
-        assert result is True
+        assert result is not None
+        assert result.id == 2000000001
         updated = await uow.payments.get_by_order_id(2000000001)
         assert updated.status == "success"
 
@@ -127,14 +128,39 @@ class TestPaymentService:
         service = PaymentService(uow, settings)
         result = await service.process_webhook({"order_id": "2000000002"})
 
-        assert result is False
+        assert result is None
 
     async def test_process_webhook_not_found(self, uow, settings):
         service = PaymentService(uow, settings)
         result = await service.process_webhook({"order_id": "9999999999"})
-        assert result is False
+        assert result is None
 
     async def test_process_webhook_no_order_id(self, uow, settings):
         service = PaymentService(uow, settings)
         result = await service.process_webhook({})
-        assert result is False
+        assert result is None
+
+    async def test_process_webhook_falls_back_to_customer_extra(self, uow, settings):
+        # When Prodamus webhook is missing our order_id, we should still
+        # resolve the pending payment via customer_extra (telegram_id).
+        user = await uow.users.get_or_create(555555, "erin")
+        await uow.commit()
+
+        payment = Payment(
+            id=2000000003,
+            user_id=user.id,
+            amount=1234,
+            status="pending",
+        )
+        await uow.payments.create(payment)
+        await uow.commit()
+
+        service = PaymentService(uow, settings)
+        result = await service.process_webhook(
+            {"customer_extra": "555555", "order_num": "43957840"}
+        )
+
+        assert result is not None
+        assert result.id == 2000000003
+        updated = await uow.payments.get_by_order_id(2000000003)
+        assert updated.status == "success"

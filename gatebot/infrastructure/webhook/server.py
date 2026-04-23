@@ -59,23 +59,27 @@ class WebhookServer:
             payment_service = PaymentService(uow, self.settings)
             subscription_service = SubscriptionService(uow, self.bot, self.settings)
 
-            processed = await payment_service.process_webhook(data_dict)
-            if processed:
-                try:
-                    order_id = int(data_dict.get('order_id'))
-                    payment = await uow.payments.get_by_order_id(order_id)
-                    telegram_id = payment.user_id
+            payment = await payment_service.process_webhook(data_dict)
+            if payment is not None:
+                user = await uow.users.get_by_id(payment.user_id)
+                if user is None:
+                    logger.error(
+                        "Payment %s references missing user_id=%s",
+                        payment.id, payment.user_id,
+                    )
+                    return web.Response(text="OK")
 
+                try:
                     invite_link = await subscription_service.activate_subscription(
-                        telegram_id, username=None
+                        user.telegram_id, username=user.username
                     )
                     await self.bot.send_message(
-                        telegram_id,
+                        user.telegram_id,
                         f"Оплата прошла успешно!\n\nВаша ссылка для входа в канал: {invite_link}",
                     )
                 except Exception:
                     logger.exception(
-                        "Failed to activate subscription for %s", telegram_id
+                        "Failed to activate subscription for %s", user.telegram_id
                     )
 
         return web.Response(text="OK")
