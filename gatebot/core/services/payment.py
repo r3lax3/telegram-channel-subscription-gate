@@ -1,5 +1,6 @@
 import time
 import logging
+from datetime import datetime, timedelta
 
 from core.config.settings import Settings
 from core.interfaces.repositories.uow import UnitOfWork
@@ -14,25 +15,40 @@ class PaymentService:
         self.settings = settings
 
     async def create_payment_link(self, telegram_id: int, username: str | None) -> str:
-        from infrastructure.prodamus.client import ProdamusClient
+        from infrastructure.prodamus.client import ProdamusClient, LINK_EXPIRATION_HOURS
 
         user = await self.uow.users.get_or_create(telegram_id, username)
-        order_id = int(time.time())
-        payment = Payment(
-            id=order_id,
-            user_id=user.id,
-            amount=self.settings.subscription_price,
-            status="pending",
-        )
-        await self.uow.payments.create(payment)
-        await self.uow.commit()
 
+        existing = await self.uow.payments.get_latest_pending_by_user_id(user.id)
+        cutoff = datetime.utcnow() - timedelta(hours=LINK_EXPIRATION_HOURS)
+        if (
+            existing is not None
+            and existing.payment_link
+            and existing.created_at > cutoff
+        ):
+            logger.info(
+                "Reusing pending payment %s for user %s", existing.id, telegram_id
+            )
+            return existing.payment_link
+
+        order_id = int(time.time())
         client = ProdamusClient(self.settings)
         link = await client.create_payment_link(
             order_id=order_id,
             amount=self.settings.subscription_price,
             customer_extra=telegram_id,
         )
+
+        payment = Payment(
+            id=order_id,
+            user_id=user.id,
+            amount=self.settings.subscription_price,
+            status="pending",
+            payment_link=link,
+        )
+        await self.uow.payments.create(payment)
+        await self.uow.commit()
+
         logger.info("Payment link created for user %s, order %s", telegram_id, order_id)
         return link
 

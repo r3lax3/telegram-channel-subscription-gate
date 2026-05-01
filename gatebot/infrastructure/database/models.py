@@ -31,6 +31,7 @@ class Payment(Base):
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
     amount: Mapped[int] = mapped_column()
     status: Mapped[str] = mapped_column(String(20), default="pending")
+    payment_link: Mapped[str | None] = mapped_column(String(2048), nullable=True)
     created_at: Mapped[datetime] = mapped_column(server_default=func.now())
 
     user: Mapped["User"] = relationship(back_populates="payments")

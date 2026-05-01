@@ -90,6 +90,49 @@ class TestPaymentService:
         user = await uow.users.get_by_telegram_id(111111)
         assert user is not None
 
+        pending = await uow.payments.get_latest_pending_by_user_id(user.id)
+        assert pending is not None
+        assert pending.payment_link == link
+
+    async def test_create_payment_link_reuses_pending(self, uow, settings):
+        service = PaymentService(uow, settings)
+        mock = AsyncMock(return_value="https://test.payform.ru/?order_id=first")
+
+        with patch(
+            "infrastructure.prodamus.client.ProdamusClient.create_payment_link",
+            new=mock,
+        ):
+            first = await service.create_payment_link(123123, "reuse")
+            second = await service.create_payment_link(123123, "reuse")
+
+        assert first == second
+        assert mock.await_count == 1
+
+    async def test_create_payment_link_skips_expired_pending(self, uow, settings):
+        user = await uow.users.get_or_create(456456, "stale")
+        await uow.commit()
+
+        old_payment = Payment(
+            id=1700000000,
+            user_id=user.id,
+            amount=1234,
+            status="pending",
+            payment_link="https://test.payform.ru/?order_id=stale",
+            created_at=datetime.utcnow() - timedelta(hours=72),
+        )
+        await uow.payments.create(old_payment)
+        await uow.commit()
+
+        service = PaymentService(uow, settings)
+        with patch(
+            "infrastructure.prodamus.client.ProdamusClient.create_payment_link",
+            new_callable=AsyncMock,
+            return_value="https://test.payform.ru/?order_id=fresh",
+        ):
+            link = await service.create_payment_link(456456, "stale")
+
+        assert link == "https://test.payform.ru/?order_id=fresh"
+
     async def test_process_webhook_success(self, uow, settings):
         # Create user and payment first
         user = await uow.users.get_or_create(222222, "bob")
