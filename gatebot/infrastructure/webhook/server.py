@@ -9,10 +9,11 @@ from core.config.settings import Settings
 from core.services.payment import PaymentService
 from core.services.subscription import SubscriptionService
 from infrastructure.database.uow import SQLUnitOfWork
-from infrastructure.prodamus.client import _create_hmac
 from infrastructure.prodamus.client import ProdamusClient
 
 logger = logging.getLogger(__name__)
+
+SUCCESS_PAYMENT_STATUSES = ("success", "success_test_payment")
 
 
 class WebhookServer:
@@ -40,17 +41,27 @@ class WebhookServer:
             logger.exception("Failed to parse webhook data")
             return web.Response(status=400, text="Bad request")
 
-        # signature = data_dict.pop("sign", "") or request.headers.get("Sign", "")
-        # if not ProdamusClient.verify_signature(
-        #     data_dict, str(signature), self.settings.prodamus_secret_key
-        # ):
-        #     local_signature = _create_hmac(data_dict, self.settings.prodamus_secret_key)
-        #     logger.warning(f"Invalid webhook signature (local: \"{local_signature}\", external: \"{signature}\")")
-        #     logger.warning(f"{data}")
-        #     return web.Response(status=403, text="Invalid signature")
-        #
+        logger.info(
+            "Webhook received: order_id=%s customer_extra=%s payment_status=%s",
+            data_dict.get("order_id"),
+            data_dict.get("customer_extra"),
+            data_dict.get("payment_status"),
+        )
+
+        signature = data_dict.pop("sign", "") or request.headers.get("Sign", "")
+        if not ProdamusClient.verify_signature(
+            data_dict, str(signature), self.settings.prodamus_secret_key
+        ):
+            logger.warning("Webhook rejected: invalid signature (sign=%r)", signature)
+            return web.Response(status=403, text="Invalid signature")
+
+        customer_extra = data_dict.get("customer_extra")
+        if not customer_extra or customer_extra == "0":
+            logger.warning("Webhook rejected: missing customer_extra")
+            return web.Response(status=400, text="Missing customer_extra")
+
         payment_status = data_dict.get("payment_status")
-        if payment_status != "success":
+        if payment_status not in SUCCESS_PAYMENT_STATUSES:
             logger.info("Webhook ignored: payment_status=%s", payment_status)
             return web.Response(status=200, text="OK")
 
@@ -60,27 +71,43 @@ class WebhookServer:
             subscription_service = SubscriptionService(uow, self.bot, self.settings)
 
             payment = await payment_service.process_webhook(data_dict)
-            if payment is not None:
-                user = await uow.users.get_by_id(payment.user_id)
-                if user is None:
-                    logger.error(
-                        "Payment %s references missing user_id=%s",
-                        payment.id, payment.user_id,
-                    )
-                    return web.Response(text="OK")
+            if payment is None:
+                logger.warning("Webhook: no matching payment processed")
+                return web.Response(text="OK")
 
-                try:
-                    invite_link = await subscription_service.activate_subscription(
-                        user.telegram_id, username=user.username
-                    )
-                    await self.bot.send_message(
-                        user.telegram_id,
-                        f"Оплата прошла успешно!\n\nВаша ссылка для входа в канал: {invite_link}",
-                    )
-                except Exception:
-                    logger.exception(
-                        "Failed to activate subscription for %s", user.telegram_id
-                    )
+            logger.info(
+                "Webhook: payment id=%s marked success for user_id=%s",
+                payment.id, payment.user_id,
+            )
+            user = await uow.users.get_by_id(payment.user_id)
+            if user is None:
+                logger.error(
+                    "Payment %s references missing user_id=%s",
+                    payment.id, payment.user_id,
+                )
+                return web.Response(text="OK")
+
+            try:
+                logger.info(
+                    "Activating subscription for telegram_id=%s", user.telegram_id
+                )
+                invite_link = await subscription_service.activate_subscription(
+                    user.telegram_id, username=user.username
+                )
+                logger.info(
+                    "Sending invite link to telegram_id=%s", user.telegram_id
+                )
+                await self.bot.send_message(
+                    user.telegram_id,
+                    f"Оплата прошла успешно!\n\nВаша ссылка для входа в канал: {invite_link}",
+                )
+                logger.info(
+                    "Invite link delivered to telegram_id=%s", user.telegram_id
+                )
+            except Exception:
+                logger.exception(
+                    "Failed to activate subscription for %s", user.telegram_id
+                )
 
         return web.Response(text="OK")
 
