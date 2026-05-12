@@ -7,10 +7,12 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from core.config.settings import Settings
 from core.services.subscription import SubscriptionService
 from infrastructure.database.uow import SQLUnitOfWork
+from tgbot.texts import SUBSCRIPTION_EXPIRING, SUBSCRIPTION_EXPIRED
 
 logger = logging.getLogger(__name__)
 
 WORKER_INTERVAL_SECONDS = 3600  # 1 hour
+EXPIRING_NOTICE_DAYS = 3
 
 
 async def subscription_worker(
@@ -27,14 +29,12 @@ async def subscription_worker(
                 service = SubscriptionService(uow, bot, settings)
 
                 # 1. Notify users whose subscription expires in 3 days
-                expiring = await service.get_expiring_users(days=3)
+                expiring = await service.get_expiring_users(days=EXPIRING_NOTICE_DAYS)
                 for user in expiring:
                     try:
                         await bot.send_message(
                             user.telegram_id,
-                            "Ваша подписка заканчивается через 3 дня. "
-                            "Если автопродление отключено — продлите подписку вручную, "
-                            "используя /start",
+                            SUBSCRIPTION_EXPIRING.format(days=EXPIRING_NOTICE_DAYS),
                         )
                     except Exception:
                         logger.exception(
@@ -50,8 +50,7 @@ async def subscription_worker(
                         await uow.users.update(user)
                         await bot.send_message(
                             user.telegram_id,
-                            "Ваша подписка истекла. Вы были удалены из канала. "
-                            "Для продления используйте /start",
+                            SUBSCRIPTION_EXPIRED,
                         )
                     except Exception:
                         logger.exception(

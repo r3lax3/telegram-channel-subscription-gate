@@ -28,6 +28,7 @@ from sqlalchemy.ext.asyncio import (
 from core.config.settings import Settings
 from core.interfaces.uow import UnitOfWork
 from core.services.payment import PaymentService
+from core.services.stats import StatsService
 from core.services.subscription import SubscriptionService
 from infrastructure.database.uow import SQLUnitOfWork
 from tgbot.handlers import setup_handlers
@@ -95,6 +96,10 @@ class ServiceProvider(Provider):
         self, uow: UnitOfWork, bot: Bot, settings: Settings
     ) -> SubscriptionService:
         return SubscriptionService(uow, bot, settings)
+
+    @provide
+    def create_stats_service(self, uow: UnitOfWork) -> StatsService:
+        return StatsService(uow)
 
 
 class DispatcherProvider(Provider):

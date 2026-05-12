@@ -15,3 +15,9 @@ class PaymentRepository(ABC):
 
     @abstractmethod
     async def update(self, payment: Payment) -> None: ...
+
+    @abstractmethod
+    async def count_by_status(self, status: str) -> int: ...
+
+    @abstractmethod
+    async def sum_revenue(self, days_back: int | None = None) -> int: ...

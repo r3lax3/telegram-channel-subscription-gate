@@ -54,3 +54,30 @@ class SubscriptionService:
 
     async def get_expired_users(self) -> list[User]:
         return await self.uow.users.get_expired_users()
+
+    async def set_subscription_end(
+        self, telegram_id: int, end_date: datetime
+    ) -> User | None:
+        user = await self.uow.users.get_by_telegram_id(telegram_id)
+        if user is None:
+            return None
+        user.subscription_end_date = end_date
+        user.is_active = end_date > datetime.utcnow()
+        await self.uow.users.update(user)
+        await self.uow.commit()
+        logger.info(
+            "Subscription manually set for user %s until %s", telegram_id, end_date
+        )
+        return user
+
+    async def revoke_subscription(self, telegram_id: int) -> User | None:
+        user = await self.uow.users.get_by_telegram_id(telegram_id)
+        if user is None:
+            return None
+        await self.kick_user(telegram_id)
+        user.is_active = False
+        user.subscription_end_date = None
+        await self.uow.users.update(user)
+        await self.uow.commit()
+        logger.info("Subscription manually revoked for user %s", telegram_id)
+        return user
