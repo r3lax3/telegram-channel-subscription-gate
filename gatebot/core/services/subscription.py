@@ -18,7 +18,7 @@ class SubscriptionService:
 
     async def activate_subscription(
         self, telegram_id: int, username: str | None
-    ) -> str:
+    ) -> User:
         user = await self.uow.users.get_or_create(telegram_id, username)
         now = datetime.utcnow()
         if user.subscription_end_date and user.subscription_end_date > now:
@@ -28,16 +28,17 @@ class SubscriptionService:
         user.is_active = True
         await self.uow.users.update(user)
         await self.uow.commit()
-
-        invite_link = await self.bot.create_chat_invite_link(
-            chat_id=self.settings.channel_id,
-            member_limit=1,
-        )
         logger.info(
             "Subscription activated for user %s until %s",
             telegram_id, user.subscription_end_date,
         )
-        return invite_link.invite_link
+        return user
+
+    @staticmethod
+    def has_active_subscription(user: User | None) -> bool:
+        if user is None or not user.is_active or user.subscription_end_date is None:
+            return False
+        return user.subscription_end_date > datetime.utcnow()
 
     async def kick_user(self, telegram_id: int) -> None:
         try:

@@ -27,6 +27,7 @@ from sqlalchemy.ext.asyncio import (
 
 from core.config.settings import Settings
 from core.interfaces.uow import UnitOfWork
+from core.services.invite import InviteService
 from core.services.payment import PaymentService
 from core.services.stats import StatsService
 from core.services.subscription import SubscriptionService
@@ -152,6 +153,14 @@ class BgManagerProvider(Provider):
         return dp["bg_manager_factory"]
 
 
+class InviteServiceProvider(Provider):
+    scope = Scope.APP
+
+    @provide
+    def create_invite_service(self, bot: Bot, settings: Settings) -> InviteService:
+        return InviteService(bot, settings)
+
+
 def get_all_dishka_providers() -> list[Provider]:
     return [
         ConfigProvider(),
@@ -162,6 +171,8 @@ def get_all_dishka_providers() -> list[Provider]:
         DispatcherProvider(),
         RedisProvider(),
         BotProvider(),
+        BgManagerProvider(),
+        InviteServiceProvider(),
     ]
 
 

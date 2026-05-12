@@ -22,6 +22,13 @@ PAYMENT_INFO = """
 
 PAYMENT_SUCCESS = "Оплата прошла успешно!"
 
+SUBSCRIPTION_ACTIVE = (
+    "Подписка оплачена.\n"
+    "Срок окончания: {subscription_end}\n\n"
+    '<a href="{invite_link}">Ссылка для входа в канал</a>\n\n'
+    "Чтобы обновить информацию из этого меню — отправьте /start"
+)
+
 SUBSCRIPTION_EXPIRING = (
     "Ваша подписка заканчивается через {days} дн. "
     "Чтобы продлить — нажмите /start."
@@ -36,6 +43,7 @@ SUBSCRIPTION_EXPIRED = (
 
 BTN_BACK = "Назад"
 BTN_PAY = "Оплатить доступ"
+BTN_RENEW = "Продлить подписку"
 BTN_SUPPORT = "Поддержка"
 BTN_PAY_LINK = "Перейти к оплате"
 

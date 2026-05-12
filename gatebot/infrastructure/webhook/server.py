@@ -3,12 +3,14 @@ import logging
 
 from aiohttp import web
 from aiogram import Bot
+from aiogram_dialog import BgManagerFactory, StartMode
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from core.config.settings import Settings
 from core.services.payment import PaymentService
 from core.services.subscription import SubscriptionService
 from infrastructure.database.uow import SQLUnitOfWork
+from tgbot.states import UserSG
 
 logger = logging.getLogger(__name__)
 
@@ -19,10 +21,12 @@ class WebhookServer:
         settings: Settings,
         session_factory: async_sessionmaker[AsyncSession],
         bot: Bot,
+        bg_manager_factory: BgManagerFactory,
     ) -> None:
         self.settings = settings
         self.session_factory = session_factory
         self.bot = bot
+        self.bg_manager_factory = bg_manager_factory
         self.app = web.Application()
         self.app.router.add_post("/prodamus/webhook", self.handle_prodamus_webhook)
         self.app.router.add_get("/health", self.handle_health)
@@ -49,29 +53,44 @@ class WebhookServer:
             subscription_service = SubscriptionService(uow, self.bot, self.settings)
 
             payment = await payment_service.process_webhook(data_dict)
-            if payment is not None:
-                user = await uow.users.get_by_id(payment.user_id)
-                if user is None:
-                    logger.error(
-                        "Payment %s references missing user_id=%s",
-                        payment.id, payment.user_id,
-                    )
-                    return web.Response(text="OK")
+            if payment is None:
+                return web.Response(text="OK")
 
-                try:
-                    invite_link = await subscription_service.activate_subscription(
-                        user.telegram_id, username=user.username
-                    )
-                    await self.bot.send_message(
-                        user.telegram_id,
-                        f"Оплата прошла успешно!\n\nВаша ссылка для входа в канал: {invite_link}",
-                    )
-                except Exception:
-                    logger.exception(
-                        "Failed to activate subscription for %s", user.telegram_id
-                    )
+            user = await uow.users.get_by_id(payment.user_id)
+            if user is None:
+                logger.error(
+                    "Payment %s references missing user_id=%s",
+                    payment.id, payment.user_id,
+                )
+                return web.Response(text="OK")
+
+            try:
+                await subscription_service.activate_subscription(
+                    user.telegram_id, username=user.username
+                )
+            except Exception:
+                logger.exception(
+                    "Failed to activate subscription for %s", user.telegram_id
+                )
+                return web.Response(text="OK")
+
+            await self._switch_to_active_menu(user.telegram_id)
 
         return web.Response(text="OK")
+
+    async def _switch_to_active_menu(self, telegram_id: int) -> None:
+        try:
+            manager = self.bg_manager_factory.bg(
+                bot=self.bot,
+                user_id=telegram_id,
+                chat_id=telegram_id,
+                load=False,
+            )
+            await manager.start(UserSG.subscription_active, mode=StartMode.RESET_STACK)
+        except Exception:
+            logger.exception(
+                "Failed to switch dialog to active menu for %s", telegram_id
+            )
 
     async def start(self) -> None:
         runner = web.AppRunner(self.app)

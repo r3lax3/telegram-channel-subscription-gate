@@ -1,5 +1,6 @@
 import pytest
 import pytest_asyncio
+from unittest.mock import AsyncMock, MagicMock
 from aiohttp.test_utils import TestClient, TestServer
 
 from infrastructure.webhook.server import WebhookServer
@@ -7,10 +8,13 @@ from infrastructure.webhook.server import WebhookServer
 
 @pytest_asyncio.fixture
 async def webhook_app(settings, session_factory, mock_bot):
+    bg_manager = MagicMock()
+    bg_manager.bg.return_value = AsyncMock()
     server = WebhookServer(
         settings=settings,
         session_factory=session_factory,
         bot=mock_bot,
+        bg_manager_factory=bg_manager,
     )
     return server.app
 

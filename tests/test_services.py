@@ -11,20 +11,18 @@ from infrastructure.database.models import User, Payment
 class TestSubscriptionService:
     async def test_activate_subscription_new_user(self, uow, mock_bot, settings):
         service = SubscriptionService(uow, mock_bot, settings)
-        invite_link = await service.activate_subscription(111111, "alice")
+        user = await service.activate_subscription(111111, "alice")
 
-        assert invite_link == "https://t.me/+test_invite_link"
-        mock_bot.create_chat_invite_link.assert_called_once_with(
-            chat_id=settings.channel_id,
-            member_limit=1,
-        )
-
-        user = await uow.users.get_by_telegram_id(111111)
-        assert user is not None
+        assert user.telegram_id == 111111
         assert user.is_active is True
-        assert user.subscription_end_date is not None
+        mock_bot.create_chat_invite_link.assert_not_called()
+
+        fetched = await uow.users.get_by_telegram_id(111111)
+        assert fetched is not None
+        assert fetched.is_active is True
+        assert fetched.subscription_end_date is not None
         expected_end = datetime.utcnow() + timedelta(days=30)
-        assert abs((user.subscription_end_date - expected_end).total_seconds()) < 5
+        assert abs((fetched.subscription_end_date - expected_end).total_seconds()) < 5
 
     async def test_activate_subscription_extends_existing(self, uow, mock_bot, settings):
         # Create user with existing active subscription
