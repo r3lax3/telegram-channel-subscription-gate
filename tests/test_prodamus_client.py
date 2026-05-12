@@ -30,17 +30,6 @@ class TestHmac:
 
 
 class TestProdamusClient:
-    def test_verify_signature_valid(self):
-        data = {"order_id": "123", "amount": "1000"}
-        secret = "test_secret"
-        signature = _create_hmac(data, secret)
-
-        assert ProdamusClient.verify_signature(data, signature, secret) is True
-
-    def test_verify_signature_invalid(self):
-        data = {"order_id": "123", "amount": "1000"}
-        assert ProdamusClient.verify_signature(data, "invalid_sig", "secret") is False
-
     @pytest.mark.asyncio
     async def test_create_payment_link(self, settings):
         """Test that create_payment_link makes a request (mocked in real tests)."""

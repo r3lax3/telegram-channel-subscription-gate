@@ -27,3 +27,6 @@ class Settings(BaseSettings):
 
     webhook_host: str = ""
     webhook_port: int = 8080
+
+    invite_link_file: str = "/app/data/invite_link.txt"
+    invite_link_name: str = "gatebot"

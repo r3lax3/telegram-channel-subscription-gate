@@ -1,4 +1,11 @@
 import logging
+from datetime import datetime, timezone
+
+
+def utcnow() -> datetime:
+    """Naive UTC timestamp. SQLAlchemy columns are TIMESTAMP WITHOUT TZ; we treat them as UTC."""
+    return datetime.now(timezone.utc).replace(tzinfo=None)
+
 
 def setup_logging_settings():
     logging.basicConfig(

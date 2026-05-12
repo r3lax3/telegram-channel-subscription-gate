@@ -1,6 +1,9 @@
-from sqlalchemy import select
+from datetime import timedelta
+
+from sqlalchemy import func, select, update
 
 from core.interfaces.repositories.payment import PaymentRepository
+from core.utils import utcnow
 from infrastructure.database.models import Payment
 from infrastructure.database.repositories.base import BaseRepository
 
@@ -28,3 +31,29 @@ class SQLPaymentRepository(BaseRepository, PaymentRepository):
 
     async def update(self, payment: Payment) -> None:
         await self.session.merge(payment)
+
+    async def count_by_status(self, status: str) -> int:
+        result = await self.session.execute(
+            select(func.count(Payment.id)).where(Payment.status == status)
+        )
+        return int(result.scalar_one() or 0)
+
+    async def sum_revenue(self, days_back: int | None = None) -> int:
+        stmt = select(func.coalesce(func.sum(Payment.amount), 0)).where(
+            Payment.status == "success"
+        )
+        if days_back is not None:
+            since = utcnow() - timedelta(days=days_back)
+            stmt = stmt.where(Payment.created_at >= since)
+        result = await self.session.execute(stmt)
+        return int(result.scalar_one() or 0)
+
+    async def expire_stale_pending(self, ttl_hours: int) -> int:
+        cutoff = utcnow() - timedelta(hours=ttl_hours)
+        stmt = (
+            update(Payment)
+            .where(Payment.status == "pending", Payment.created_at < cutoff)
+            .values(status="expired")
+        )
+        result = await self.session.execute(stmt)
+        return int(result.rowcount or 0)

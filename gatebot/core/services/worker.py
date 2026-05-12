@@ -7,10 +7,13 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from core.config.settings import Settings
 from core.services.subscription import SubscriptionService
 from infrastructure.database.uow import SQLUnitOfWork
+from tgbot.texts import SUBSCRIPTION_EXPIRING, SUBSCRIPTION_EXPIRED
 
 logger = logging.getLogger(__name__)
 
 WORKER_INTERVAL_SECONDS = 3600  # 1 hour
+EXPIRING_NOTICE_DAYS = 3
+PENDING_PAYMENT_TTL_HOURS = 48
 
 
 async def subscription_worker(
@@ -26,40 +29,47 @@ async def subscription_worker(
                 uow = SQLUnitOfWork(session)
                 service = SubscriptionService(uow, bot, settings)
 
-                # 1. Notify users whose subscription expires in 3 days
-                expiring = await service.get_expiring_users(days=3)
+                expiring = await uow.users.get_expiring_unnotified(EXPIRING_NOTICE_DAYS)
+                notified = 0
                 for user in expiring:
                     try:
                         await bot.send_message(
                             user.telegram_id,
-                            "Ваша подписка заканчивается через 3 дня. "
-                            "Если автопродление отключено — продлите подписку вручную, "
-                            "используя /start",
+                            SUBSCRIPTION_EXPIRING.format(days=EXPIRING_NOTICE_DAYS),
                         )
+                        user.expiring_notice_sent = True
+                        await uow.users.update(user)
+                        notified += 1
                     except Exception:
                         logger.exception(
                             "Failed to notify expiring user %s", user.telegram_id
                         )
 
-                # 2. Kick expired users from channel
                 expired = await service.get_expired_users()
+                kicked = 0
                 for user in expired:
+                    if not await service.kick_user(user.telegram_id):
+                        continue
+                    user.is_active = False
+                    user.expiring_notice_sent = False
+                    await uow.users.update(user)
                     try:
-                        await service.kick_user(user.telegram_id)
-                        user.is_active = False
-                        await uow.users.update(user)
                         await bot.send_message(
-                            user.telegram_id,
-                            "Ваша подписка истекла. Вы были удалены из канала. "
-                            "Для продления используйте /start",
+                            user.telegram_id, SUBSCRIPTION_EXPIRED
                         )
                     except Exception:
                         logger.exception(
-                            "Failed to process expired user %s", user.telegram_id
+                            "Failed to send expiry message to %s", user.telegram_id
                         )
+                    kicked += 1
+
+                stale = await uow.payments.expire_stale_pending(PENDING_PAYMENT_TTL_HOURS)
 
                 await uow.commit()
-                logger.info("Worker cycle: %d expiring, %d expired", len(expiring), len(expired))
+                logger.info(
+                    "Worker cycle: notified=%d, kicked=%d, expired_payments=%d",
+                    notified, kicked, stale,
+                )
 
         except Exception:
             logger.exception("Worker iteration failed")

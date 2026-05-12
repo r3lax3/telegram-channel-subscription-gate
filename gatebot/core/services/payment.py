@@ -1,5 +1,5 @@
-import time
 import logging
+import secrets
 
 from core.config.settings import Settings
 from core.interfaces.repositories.uow import UnitOfWork
@@ -7,24 +7,39 @@ from infrastructure.database.models import Payment
 
 logger = logging.getLogger(__name__)
 
+_MAX_ORDER_ID_RETRIES = 5
+
 
 class PaymentService:
     def __init__(self, uow: UnitOfWork, settings: Settings) -> None:
         self.uow = uow
         self.settings = settings
 
-    async def create_payment_link(self, telegram_id: int, username: str | None) -> str:
+    async def create_payment_link(self, telegram_id: int, username: str | None) -> tuple[int, str]:
+        from sqlalchemy.exc import IntegrityError
         from infrastructure.prodamus.client import ProdamusClient
 
         user = await self.uow.users.get_or_create(telegram_id, username)
-        order_id = int(time.time())
-        payment = Payment(
-            id=order_id,
-            user_id=user.id,
-            amount=self.settings.subscription_price,
-            status="pending",
-        )
-        await self.uow.payments.create(payment)
+
+        order_id: int | None = None
+        for _ in range(_MAX_ORDER_ID_RETRIES):
+            candidate = secrets.randbits(62)
+            payment = Payment(
+                id=candidate,
+                user_id=user.id,
+                amount=self.settings.subscription_price,
+                status="pending",
+            )
+            try:
+                await self.uow.payments.create(payment)
+                order_id = candidate
+                break
+            except IntegrityError:
+                await self.uow.rollback()
+                continue
+        if order_id is None:
+            raise RuntimeError("Could not allocate unique order_id after retries")
+
         await self.uow.commit()
 
         client = ProdamusClient(self.settings)
@@ -34,7 +49,7 @@ class PaymentService:
             customer_extra=telegram_id,
         )
         logger.info("Payment link created for user %s, order %s", telegram_id, order_id)
-        return link
+        return order_id, link
 
     async def process_webhook(self, data: dict) -> Payment | None:
         payment = await self._find_pending_payment(data)

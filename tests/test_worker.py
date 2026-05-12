@@ -1,5 +1,5 @@
 import pytest
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from unittest.mock import AsyncMock, MagicMock, patch
 import asyncio
 
@@ -14,7 +14,7 @@ class TestSubscriptionWorker:
         # Create expiring user
         user = await uow.users.get_or_create(111111, "expiring_user")
         user.is_active = True
-        user.subscription_end_date = datetime.utcnow() + timedelta(days=2)
+        user.subscription_end_date = datetime.now(timezone.utc).replace(tzinfo=None) + timedelta(days=2)
         await uow.users.update(user)
         await uow.commit()
 
@@ -35,7 +35,7 @@ class TestSubscriptionWorker:
         # Create expired user
         user = await uow.users.get_or_create(222222, "expired_user")
         user.is_active = True
-        user.subscription_end_date = datetime.utcnow() - timedelta(hours=1)
+        user.subscription_end_date = datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(hours=1)
         await uow.users.update(user)
         await uow.commit()
 
@@ -54,7 +54,7 @@ class TestSubscriptionWorker:
         # Create expired user but make bot.ban raise an error
         user = await uow.users.get_or_create(333333, "error_user")
         user.is_active = True
-        user.subscription_end_date = datetime.utcnow() - timedelta(hours=1)
+        user.subscription_end_date = datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(hours=1)
         await uow.users.update(user)
         await uow.commit()
 
