@@ -5,6 +5,7 @@ from aiogram import Bot
 
 from core.config.settings import Settings
 from core.interfaces.repositories.uow import UnitOfWork
+from core.utils import utcnow
 from infrastructure.database.models import User
 
 logger = logging.getLogger(__name__)
@@ -20,12 +21,13 @@ class SubscriptionService:
         self, telegram_id: int, username: str | None
     ) -> User:
         user = await self.uow.users.get_or_create(telegram_id, username)
-        now = datetime.utcnow()
+        now = utcnow()
         if user.subscription_end_date and user.subscription_end_date > now:
             user.subscription_end_date += timedelta(days=self.settings.subscription_days)
         else:
             user.subscription_end_date = now + timedelta(days=self.settings.subscription_days)
         user.is_active = True
+        user.expiring_notice_sent = False
         await self.uow.users.update(user)
         await self.uow.commit()
         logger.info(
@@ -38,17 +40,19 @@ class SubscriptionService:
     def has_active_subscription(user: User | None) -> bool:
         if user is None or not user.is_active or user.subscription_end_date is None:
             return False
-        return user.subscription_end_date > datetime.utcnow()
+        return user.subscription_end_date > utcnow()
 
-    async def kick_user(self, telegram_id: int) -> None:
+    async def kick_user(self, telegram_id: int) -> bool:
         try:
             await self.bot.ban_chat_member(self.settings.channel_id, telegram_id)
             await self.bot.unban_chat_member(
                 self.settings.channel_id, telegram_id, only_if_banned=True
             )
             logger.info("User %s kicked from channel", telegram_id)
+            return True
         except Exception:
             logger.exception("Failed to kick user %s from channel", telegram_id)
+            return False
 
     async def get_expiring_users(self, days: int = 3) -> list[User]:
         return await self.uow.users.get_expiring_users(days)
@@ -62,8 +66,13 @@ class SubscriptionService:
         user = await self.uow.users.get_by_telegram_id(telegram_id)
         if user is None:
             return None
+        now = utcnow()
         user.subscription_end_date = end_date
-        user.is_active = end_date > datetime.utcnow()
+        user.is_active = end_date > now
+        if not user.is_active:
+            await self.kick_user(telegram_id)
+        else:
+            user.expiring_notice_sent = False
         await self.uow.users.update(user)
         await self.uow.commit()
         logger.info(
@@ -75,9 +84,16 @@ class SubscriptionService:
         user = await self.uow.users.get_by_telegram_id(telegram_id)
         if user is None:
             return None
-        await self.kick_user(telegram_id)
+        kicked = await self.kick_user(telegram_id)
+        if not kicked:
+            logger.warning(
+                "Revoke for %s: kick failed; subscription state left untouched",
+                telegram_id,
+            )
+            return None
         user.is_active = False
         user.subscription_end_date = None
+        user.expiring_notice_sent = False
         await self.uow.users.update(user)
         await self.uow.commit()
         logger.info("Subscription manually revoked for user %s", telegram_id)

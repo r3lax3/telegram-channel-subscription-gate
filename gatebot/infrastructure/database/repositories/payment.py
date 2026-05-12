@@ -1,8 +1,9 @@
-from datetime import datetime, timedelta
+from datetime import timedelta
 
-from sqlalchemy import func, select
+from sqlalchemy import func, select, update
 
 from core.interfaces.repositories.payment import PaymentRepository
+from core.utils import utcnow
 from infrastructure.database.models import Payment
 from infrastructure.database.repositories.base import BaseRepository
 
@@ -42,7 +43,17 @@ class SQLPaymentRepository(BaseRepository, PaymentRepository):
             Payment.status == "success"
         )
         if days_back is not None:
-            since = datetime.utcnow() - timedelta(days=days_back)
+            since = utcnow() - timedelta(days=days_back)
             stmt = stmt.where(Payment.created_at >= since)
         result = await self.session.execute(stmt)
         return int(result.scalar_one() or 0)
+
+    async def expire_stale_pending(self, ttl_hours: int) -> int:
+        cutoff = utcnow() - timedelta(hours=ttl_hours)
+        stmt = (
+            update(Payment)
+            .where(Payment.status == "pending", Payment.created_at < cutoff)
+            .values(status="expired")
+        )
+        result = await self.session.execute(stmt)
+        return int(result.rowcount or 0)

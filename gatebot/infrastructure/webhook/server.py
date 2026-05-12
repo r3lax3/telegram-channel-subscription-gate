@@ -87,9 +87,21 @@ class WebhookServer:
                 load=False,
             )
             await manager.start(UserSG.subscription_active, mode=StartMode.RESET_STACK)
+            return
         except Exception:
             logger.exception(
-                "Failed to switch dialog to active menu for %s", telegram_id
+                "Failed to switch dialog to active menu for %s; sending fallback",
+                telegram_id,
+            )
+
+        try:
+            await self.bot.send_message(
+                telegram_id,
+                "Подписка активирована. Отправьте /start, чтобы открыть меню.",
+            )
+        except Exception:
+            logger.exception(
+                "Fallback message also failed for user %s", telegram_id
             )
 
     async def start(self) -> None:

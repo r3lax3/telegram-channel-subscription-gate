@@ -2,12 +2,13 @@ import hashlib
 import hmac
 import json
 import logging
-from datetime import datetime, timedelta
+from datetime import timedelta
 from urllib.parse import quote
 
 import aiohttp
 
 from core.config.settings import Settings
+from core.utils import utcnow
 
 logger = logging.getLogger(__name__)
 
@@ -26,7 +27,7 @@ class ProdamusClient:
         amount: int,
         customer_extra: int,
     ) -> str:
-        expires_at = datetime.utcnow() + timedelta(hours=LINK_EXPIRATION_HOURS)
+        expires_at = utcnow() + timedelta(hours=LINK_EXPIRATION_HOURS)
 
         params = {
             "do": "link",

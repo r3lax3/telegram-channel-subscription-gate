@@ -1,5 +1,5 @@
 import pytest
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from unittest.mock import AsyncMock, MagicMock, patch
 
 from core.services.subscription import SubscriptionService
@@ -21,13 +21,13 @@ class TestSubscriptionService:
         assert fetched is not None
         assert fetched.is_active is True
         assert fetched.subscription_end_date is not None
-        expected_end = datetime.utcnow() + timedelta(days=30)
+        expected_end = datetime.now(timezone.utc).replace(tzinfo=None) + timedelta(days=30)
         assert abs((fetched.subscription_end_date - expected_end).total_seconds()) < 5
 
     async def test_activate_subscription_extends_existing(self, uow, mock_bot, settings):
         # Create user with existing active subscription
         user = await uow.users.get_or_create(222222, "bob")
-        future_date = datetime.utcnow() + timedelta(days=10)
+        future_date = datetime.now(timezone.utc).replace(tzinfo=None) + timedelta(days=10)
         user.subscription_end_date = future_date
         user.is_active = True
         await uow.users.update(user)
@@ -42,17 +42,25 @@ class TestSubscriptionService:
 
     async def test_kick_user(self, uow, mock_bot, settings):
         service = SubscriptionService(uow, mock_bot, settings)
-        await service.kick_user(111111)
+        result = await service.kick_user(111111)
 
+        assert result is True
         mock_bot.ban_chat_member.assert_called_once_with(settings.channel_id, 111111)
         mock_bot.unban_chat_member.assert_called_once_with(
             settings.channel_id, 111111, only_if_banned=True
         )
 
+    async def test_kick_user_failure_returns_false(self, uow, mock_bot, settings):
+        mock_bot.ban_chat_member.side_effect = RuntimeError("no rights")
+        service = SubscriptionService(uow, mock_bot, settings)
+        result = await service.kick_user(111111)
+
+        assert result is False
+
     async def test_get_expiring_users(self, uow, mock_bot, settings):
         user = await uow.users.get_or_create(333333, "carol")
         user.is_active = True
-        user.subscription_end_date = datetime.utcnow() + timedelta(days=2)
+        user.subscription_end_date = datetime.now(timezone.utc).replace(tzinfo=None) + timedelta(days=2)
         await uow.users.update(user)
         await uow.commit()
 
@@ -63,7 +71,7 @@ class TestSubscriptionService:
     async def test_get_expired_users(self, uow, mock_bot, settings):
         user = await uow.users.get_or_create(444444, "dave")
         user.is_active = True
-        user.subscription_end_date = datetime.utcnow() - timedelta(hours=1)
+        user.subscription_end_date = datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(hours=1)
         await uow.users.update(user)
         await uow.commit()
 
@@ -82,8 +90,9 @@ class TestPaymentService:
             new_callable=AsyncMock,
             return_value="https://test.payform.ru/?order_id=test",
         ):
-            link = await service.create_payment_link(111111, "alice")
+            order_id, link = await service.create_payment_link(111111, "alice")
 
+        assert isinstance(order_id, int)
         assert "payform.ru" in link
         user = await uow.users.get_by_telegram_id(111111)
         assert user is not None

@@ -31,6 +31,11 @@ def setup() -> Router:
             return
 
         user = await uow.users.get_by_telegram_id(event.from_user.id)
+        if user is not None and event.from_user.username and user.username != event.from_user.username:
+            user.username = event.from_user.username
+            await uow.users.update(user)
+            await uow.commit()
+
         if SubscriptionService.has_active_subscription(user):
             try:
                 await event.approve()

@@ -16,6 +16,7 @@ class User(Base):
     username: Mapped[str | None] = mapped_column(String(255), nullable=True)
     subscription_end_date: Mapped[datetime | None] = mapped_column(nullable=True)
     is_active: Mapped[bool] = mapped_column(default=False)
+    expiring_notice_sent: Mapped[bool] = mapped_column(default=False, server_default="false")
     created_at: Mapped[datetime] = mapped_column(server_default=func.now())
 
     payments: Mapped[list["Payment"]] = relationship(back_populates="user")
@@ -27,7 +28,7 @@ class User(Base):
 class Payment(Base):
     __tablename__ = "payments"
 
-    id: Mapped[int] = mapped_column(primary_key=True)
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=False)
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
     amount: Mapped[int] = mapped_column()
     status: Mapped[str] = mapped_column(String(20), default="pending")

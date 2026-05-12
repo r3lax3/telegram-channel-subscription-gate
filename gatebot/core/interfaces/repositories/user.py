@@ -23,6 +23,9 @@ class UserRepository(ABC):
     async def get_expiring_users(self, days_ahead: int) -> list[User]: ...
 
     @abstractmethod
+    async def get_expiring_unnotified(self, days_ahead: int) -> list[User]: ...
+
+    @abstractmethod
     async def get_expired_users(self) -> list[User]: ...
 
     @abstractmethod

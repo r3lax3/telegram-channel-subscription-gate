@@ -1,5 +1,5 @@
 import pytest
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 from infrastructure.database.models import User, Payment
 
@@ -47,7 +47,7 @@ class TestUserRepository:
     async def test_get_expiring_users(self, uow):
         user = await uow.users.get_or_create(400001, "expiring")
         user.is_active = True
-        user.subscription_end_date = datetime.utcnow() + timedelta(days=2)
+        user.subscription_end_date = datetime.now(timezone.utc).replace(tzinfo=None) + timedelta(days=2)
         await uow.users.update(user)
         await uow.commit()
 
@@ -58,7 +58,7 @@ class TestUserRepository:
     async def test_get_expiring_users_excludes_far_future(self, uow):
         user = await uow.users.get_or_create(400002, "safe")
         user.is_active = True
-        user.subscription_end_date = datetime.utcnow() + timedelta(days=20)
+        user.subscription_end_date = datetime.now(timezone.utc).replace(tzinfo=None) + timedelta(days=20)
         await uow.users.update(user)
         await uow.commit()
 
@@ -68,7 +68,7 @@ class TestUserRepository:
     async def test_get_expired_users(self, uow):
         user = await uow.users.get_or_create(500001, "expired")
         user.is_active = True
-        user.subscription_end_date = datetime.utcnow() - timedelta(hours=1)
+        user.subscription_end_date = datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(hours=1)
         await uow.users.update(user)
         await uow.commit()
 
@@ -79,7 +79,7 @@ class TestUserRepository:
     async def test_get_expired_users_excludes_inactive(self, uow):
         user = await uow.users.get_or_create(500002, "inactive_expired")
         user.is_active = False
-        user.subscription_end_date = datetime.utcnow() - timedelta(hours=1)
+        user.subscription_end_date = datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(hours=1)
         await uow.users.update(user)
         await uow.commit()
 

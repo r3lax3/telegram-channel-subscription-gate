@@ -21,3 +21,6 @@ class PaymentRepository(ABC):
 
     @abstractmethod
     async def sum_revenue(self, days_back: int | None = None) -> int: ...
+
+    @abstractmethod
+    async def expire_stale_pending(self, ttl_hours: int) -> int: ...
