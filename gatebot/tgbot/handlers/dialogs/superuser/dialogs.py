@@ -89,7 +89,11 @@ dialog = Dialog(
             func=user_search_handler,
             content_types=[ContentType.TEXT],
         ),
-        Back(Const(BTN_BACK)),
+        SwitchTo(
+            Const(BTN_BACK),
+            id="users_search_back",
+            state=AdminSG.adminpanel,
+        ),
         state=AdminSG.users_search,
     ),
 
@@ -131,7 +135,11 @@ dialog = Dialog(
     # ---- Statistics ----
     Window(
         Format("{stats}"),
-        Back(Const(BTN_BACK)),
+        SwitchTo(
+            Const(BTN_BACK),
+            id="statistic_back",
+            state=AdminSG.adminpanel,
+        ),
         state=AdminSG.statistic,
         getter=stats_getter,
     ),
