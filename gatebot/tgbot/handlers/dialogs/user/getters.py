@@ -16,9 +16,14 @@ PAY_LINK_TTL_SECONDS = 30 * 60
 
 
 @inject
-async def main_menu_getter(settings: FromDishka[Settings], **kwargs):
+async def main_menu_getter(
+    event_from_user: User,
+    settings: FromDishka[Settings],
+    **kwargs,
+):
     return {
         "support_link": settings.support_link,
+        "first_name": event_from_user.first_name,
     }
 
 
