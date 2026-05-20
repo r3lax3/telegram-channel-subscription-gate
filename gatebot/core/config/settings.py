@@ -30,3 +30,8 @@ class Settings(BaseSettings):
 
     invite_link_file: str = "/app/data/invite_link.txt"
     invite_link_name: str = "gatebot"
+
+    # Astrobot subscription sync (optional)
+    astrobot_sync_enabled: bool = False
+    astrobot_sync_url: str = ""
+    astrobot_sync_secret: str = ""

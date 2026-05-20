@@ -24,7 +24,7 @@ from .getters import (
 
 dialog = Dialog(
     Window(
-        Format(WELCOME),
+        Const(WELCOME),
         SwitchTo(
             Const(BTN_PAY),
             id="pay",
@@ -36,7 +36,6 @@ dialog = Dialog(
         ),
         state=UserSG.main_menu,
         getter=main_menu_getter,
-        parse_mode=ParseMode.HTML,
     ),
     Window(
         Const(PAYMENT_INFO),

@@ -6,6 +6,7 @@ from aiogram import Bot
 from core.config.settings import Settings
 from core.interfaces.repositories.uow import UnitOfWork
 from core.utils import utcnow
+from infrastructure.astrobot.client import AstrobotClient
 from infrastructure.database.models import User
 
 logger = logging.getLogger(__name__)
@@ -34,6 +35,7 @@ class SubscriptionService:
             "Subscription activated for user %s until %s",
             telegram_id, user.subscription_end_date,
         )
+        await self._sync_to_astrobot(telegram_id, user.subscription_end_date)
         return user
 
     @staticmethod
@@ -78,7 +80,20 @@ class SubscriptionService:
         logger.info(
             "Subscription manually set for user %s until %s", telegram_id, end_date
         )
+        if user.is_active:
+            await self._sync_to_astrobot(telegram_id, end_date)
         return user
+
+    async def _sync_to_astrobot(
+        self, telegram_id: int, subscription_end_date: datetime | None
+    ) -> None:
+        if not self.settings.astrobot_sync_enabled:
+            return
+        if subscription_end_date is None:
+            return
+        await AstrobotClient(self.settings).notify(
+            telegram_id, subscription_end_date
+        )
 
     async def revoke_subscription(self, telegram_id: int) -> User | None:
         user = await self.uow.users.get_by_telegram_id(telegram_id)
