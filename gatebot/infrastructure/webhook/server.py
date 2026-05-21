@@ -10,6 +10,7 @@ from core.config.settings import Settings
 from core.services.payment import PaymentService
 from core.services.subscription import SubscriptionService
 from infrastructure.database.uow import SQLUnitOfWork
+from infrastructure.prodamus.client import verify_webhook_signature
 from tgbot.states import UserSG
 
 logger = logging.getLogger(__name__)
@@ -41,6 +42,11 @@ class WebhookServer:
         except Exception:
             logger.exception("Failed to parse webhook data")
             return web.Response(text="OK")
+
+        if self.settings.prodamus_secret_key:
+            if not verify_webhook_signature(data_dict, self.settings.prodamus_secret_key):
+                logger.warning("Webhook rejected: invalid signature")
+                return web.Response(text="OK")
 
         payment_status = data_dict.get("payment_status")
         if payment_status != "success":

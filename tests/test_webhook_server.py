@@ -4,6 +4,14 @@ from unittest.mock import AsyncMock, MagicMock
 from aiohttp.test_utils import TestClient, TestServer
 
 from infrastructure.webhook.server import WebhookServer
+from infrastructure.prodamus.client import _create_hmac
+
+
+def _sign(data: dict, secret: str) -> dict:
+    """Return data dict with 'sign' field added."""
+    signed = dict(data)
+    signed["sign"] = _create_hmac(data, secret)
+    return signed
 
 
 @pytest_asyncio.fixture
@@ -33,29 +41,43 @@ class TestWebhookEndpoints:
         text = await resp.text()
         assert text == "OK"
 
-    async def test_webhook_non_success_status_returns_ok(self, client):
+    async def test_webhook_invalid_signature_returns_ok(self, client):
         resp = await client.post(
             "/prodamus/webhook",
             data={
                 "order_id": "123",
                 "customer_extra": "111111",
-                "payment_status": "pending",
+                "payment_status": "success",
+                "sign": "invalidsignature",
             },
         )
         assert resp.status == 200
 
-    async def test_webhook_unknown_payment_returns_ok(self, client):
+    async def test_webhook_non_success_status_returns_ok(self, client, settings):
+        payload = {
+            "order_id": "123",
+            "customer_extra": "111111",
+            "payment_status": "pending",
+        }
         resp = await client.post(
             "/prodamus/webhook",
-            data={
-                "order_id": "999",
-                "customer_extra": "0",
-                "payment_status": "success",
-            },
+            data=_sign(payload, settings.prodamus_secret_key),
         )
         assert resp.status == 200
 
-    async def test_webhook_valid_request(self, client, uow):
+    async def test_webhook_unknown_payment_returns_ok(self, client, settings):
+        payload = {
+            "order_id": "999",
+            "customer_extra": "0",
+            "payment_status": "success",
+        }
+        resp = await client.post(
+            "/prodamus/webhook",
+            data=_sign(payload, settings.prodamus_secret_key),
+        )
+        assert resp.status == 200
+
+    async def test_webhook_valid_request(self, client, uow, settings):
         from infrastructure.database.models import Payment
 
         user = await uow.users.get_or_create(111111, "test")
@@ -70,12 +92,13 @@ class TestWebhookEndpoints:
         await uow.payments.create(payment)
         await uow.commit()
 
+        payload = {
+            "order_id": "3000000001",
+            "customer_extra": "111111",
+            "payment_status": "success",
+        }
         resp = await client.post(
             "/prodamus/webhook",
-            data={
-                "order_id": "3000000001",
-                "customer_extra": "111111",
-                "payment_status": "success",
-            },
+            data=_sign(payload, settings.prodamus_secret_key),
         )
         assert resp.status == 200

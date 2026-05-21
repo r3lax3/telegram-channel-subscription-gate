@@ -61,6 +61,14 @@ class ProdamusClient:
         return payment_link
 
 
+def verify_webhook_signature(data: dict, key: str) -> bool:
+    """Verify HMAC-SHA256 signature on incoming Prodamus webhook POST data."""
+    received = data.get("sign", "")
+    payload = {k: v for k, v in data.items() if k != "sign"}
+    expected = _create_hmac(payload, key)
+    return hmac.compare_digest(received, expected)
+
+
 def _create_hmac(data: dict, key: str) -> str:
     normalized = _stringify_and_sort(data)
     data_str = json.dumps(

@@ -1,6 +1,6 @@
 import pytest
 
-from infrastructure.prodamus.client import ProdamusClient, _create_hmac
+from infrastructure.prodamus.client import ProdamusClient, _create_hmac, verify_webhook_signature
 
 
 class TestHmac:
@@ -27,6 +27,31 @@ class TestHmac:
         sig = _create_hmac(data, key)
         assert isinstance(sig, str)
         assert len(sig) == 64  # SHA256 hex digest length
+
+
+class TestVerifyWebhookSignature:
+    def test_valid_signature(self):
+        key = "test_secret"
+        data = {"order_id": "123", "payment_status": "success", "customer_extra": "456"}
+        sign = _create_hmac(data, key)
+        assert verify_webhook_signature({**data, "sign": sign}, key) is True
+
+    def test_invalid_signature(self):
+        key = "test_secret"
+        data = {"order_id": "123", "payment_status": "success"}
+        assert verify_webhook_signature({**data, "sign": "wrong"}, key) is False
+
+    def test_missing_sign_field(self):
+        key = "test_secret"
+        data = {"order_id": "123", "payment_status": "success"}
+        assert verify_webhook_signature(data, key) is False
+
+    def test_sign_excluded_from_payload(self):
+        key = "test_secret"
+        data = {"order_id": "123", "payment_status": "success"}
+        sign = _create_hmac(data, key)
+        # The sign field itself must not be included when computing the expected hash
+        assert verify_webhook_signature({**data, "sign": sign}, key) is True
 
 
 class TestProdamusClient:
