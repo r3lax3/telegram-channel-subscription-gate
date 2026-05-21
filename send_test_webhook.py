@@ -13,7 +13,7 @@ import json
 
 ORDER_ID = "12345"          # ID платежа (Payment.id в нашей БД)
 CUSTOMER_EXTRA = "111111"   # Telegram ID пользователя
-WEBHOOK_URL = "https://apps.r3lax3.site/astrobot/prodamus/webhook"
+WEBHOOK_URL = "https://apps.r3lax3.site/paygatebot/prodamus/webhook"
 
 # ──────────────────────────────────────────────────────────────────────────────
 
