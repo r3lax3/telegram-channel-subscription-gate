@@ -5,7 +5,7 @@ from infrastructure.prodamus.client import ProdamusClient, _create_hmac
 
 class TestHmac:
     def test_create_hmac_deterministic(self):
-        data = {"order_id": "123", "amount": "1000"}
+        data = {"order_id": "123", "amount": "1500"}
         key = "test_secret"
         sig1 = _create_hmac(data, key)
         sig2 = _create_hmac(data, key)
