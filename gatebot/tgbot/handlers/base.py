@@ -23,7 +23,10 @@ def setup() -> Router:
         dialog_manager: DialogManager,
         uow: FromDishka[UnitOfWork],
     ):
-        user = await uow.users.get_by_telegram_id(message.from_user.id)
+        user = await uow.users.get_or_create(
+            message.from_user.id, message.from_user.username
+        )
+        await uow.commit()
         if SubscriptionService.has_active_subscription(user):
             target = UserSG.subscription_active
         else:
