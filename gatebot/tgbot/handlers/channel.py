@@ -24,7 +24,11 @@ def setup() -> Router:
         settings: FromDishka[Settings],
         uow: FromDishka[UnitOfWork],
     ):
-        if event.chat.id != settings.channel_id:
+        allowed_chats = {settings.channel_id}
+        if settings.linked_chat_id:
+            allowed_chats.add(settings.linked_chat_id)
+
+        if event.chat.id not in allowed_chats:
             logger.info(
                 "Ignored join request from unrelated chat %s", event.chat.id
             )
@@ -40,7 +44,8 @@ def setup() -> Router:
             try:
                 await event.approve()
                 logger.info(
-                    "Approved join request for user %s", event.from_user.id
+                    "Approved join request for user %s in chat %s",
+                    event.from_user.id, event.chat.id,
                 )
             except Exception:
                 logger.exception(
@@ -50,18 +55,23 @@ def setup() -> Router:
 
         try:
             await event.decline()
-            logger.info("Declined join request for user %s", event.from_user.id)
+            logger.info(
+                "Declined join request for user %s in chat %s",
+                event.from_user.id, event.chat.id,
+            )
         except Exception:
             logger.exception("Failed to decline join for %s", event.from_user.id)
 
-        try:
-            await bot.ban_chat_member(settings.channel_id, event.from_user.id)
-            await bot.unban_chat_member(
-                settings.channel_id, event.from_user.id, only_if_banned=True
-            )
-        except Exception:
-            logger.exception(
-                "Failed safety kick for %s after declined join", event.from_user.id
-            )
+        for chat_id in allowed_chats:
+            try:
+                await bot.ban_chat_member(chat_id, event.from_user.id)
+                await bot.unban_chat_member(
+                    chat_id, event.from_user.id, only_if_banned=True
+                )
+            except Exception:
+                logger.exception(
+                    "Failed safety kick for %s from chat %s after declined join",
+                    event.from_user.id, chat_id,
+                )
 
     return r

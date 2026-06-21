@@ -51,10 +51,21 @@ class SubscriptionService:
                 self.settings.channel_id, telegram_id, only_if_banned=True
             )
             logger.info("User %s kicked from channel", telegram_id)
-            return True
         except Exception:
             logger.exception("Failed to kick user %s from channel", telegram_id)
             return False
+
+        if self.settings.linked_chat_id:
+            try:
+                await self.bot.ban_chat_member(self.settings.linked_chat_id, telegram_id)
+                await self.bot.unban_chat_member(
+                    self.settings.linked_chat_id, telegram_id, only_if_banned=True
+                )
+                logger.info("User %s kicked from linked chat", telegram_id)
+            except Exception:
+                logger.exception("Failed to kick user %s from linked chat", telegram_id)
+
+        return True
 
     async def get_expiring_users(self, days: int = 3) -> list[User]:
         return await self.uow.users.get_expiring_users(days)
