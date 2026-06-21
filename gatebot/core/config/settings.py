@@ -18,6 +18,7 @@ class Settings(BaseSettings):
     support_link: str
 
     channel_id: int
+    linked_chat_id: int | None = None  # ID привязанного чата-обсуждения (опционально)
     subscription_price: int = 1234
     subscription_days: int = 30
 
