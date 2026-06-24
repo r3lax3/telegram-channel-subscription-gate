@@ -3,7 +3,7 @@ import logging
 
 from aiohttp import web
 from aiogram import Bot
-from aiogram_dialog import BgManagerFactory, StartMode
+from aiogram_dialog import BgManagerFactory, ShowMode, StartMode
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from core.config.settings import Settings
@@ -86,7 +86,15 @@ class WebhookServer:
                 chat_id=telegram_id,
                 load=False,
             )
-            await manager.start(UserSG.subscription_active, mode=StartMode.RESET_STACK)
+            # ShowMode.SEND forces a brand-new message (with notification)
+            # instead of silently editing the user's previous menu message —
+            # otherwise the post-payment menu (with the invite link) never
+            # reaches the user until they press /start manually.
+            await manager.start(
+                UserSG.subscription_active,
+                mode=StartMode.RESET_STACK,
+                show_mode=ShowMode.SEND,
+            )
             return
         except Exception:
             logger.exception(
