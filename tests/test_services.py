@@ -147,6 +147,161 @@ class TestPaymentService:
         result = await service.process_webhook({})
         assert result is None
 
+    async def test_get_price_no_deadline_uses_regular_price(self, uow, settings):
+        service = PaymentService(uow, settings)
+        assert await service.get_price(111111) == settings.subscription_price
+
+    async def test_get_price_before_deadline_is_early_for_everyone(self, uow, settings):
+        settings = settings.model_copy(
+            update={
+                "subscription_price": 2000,
+                "early_bird_price": 1500,
+                "early_bird_deadline": datetime.now(timezone.utc).replace(tzinfo=None)
+                + timedelta(days=7),
+            }
+        )
+        service = PaymentService(uow, settings)
+        # Even a user the bot has never seen gets the early price.
+        assert await service.get_price(999999) == 1500
+
+    async def test_get_price_after_deadline_grandfathers_early_payers(self, uow, settings):
+        deadline = datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(days=7)
+        settings = settings.model_copy(
+            update={
+                "subscription_price": 2000,
+                "early_bird_price": 1500,
+                "early_bird_deadline": deadline,
+            }
+        )
+        user = await uow.users.get_or_create(666666, "veteran")
+        await uow.payments.create(
+            Payment(
+                id=3000000001,
+                user_id=user.id,
+                amount=1500,
+                status="success",
+                created_at=deadline - timedelta(days=1),
+            )
+        )
+        await uow.commit()
+
+        service = PaymentService(uow, settings)
+        assert await service.get_price(666666) == 1500
+
+    async def test_get_price_after_deadline_full_price_for_late_payers(self, uow, settings):
+        deadline = datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(days=7)
+        settings = settings.model_copy(
+            update={
+                "subscription_price": 2000,
+                "early_bird_price": 1500,
+                "early_bird_deadline": deadline,
+            }
+        )
+        user = await uow.users.get_or_create(777777, "latecomer")
+        await uow.payments.create(
+            Payment(
+                id=3000000002,
+                user_id=user.id,
+                amount=2000,
+                status="success",
+                created_at=deadline + timedelta(days=1),
+            )
+        )
+        await uow.commit()
+
+        service = PaymentService(uow, settings)
+        assert await service.get_price(777777) == 2000
+
+    async def test_get_price_after_deadline_pending_does_not_count(self, uow, settings):
+        deadline = datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(days=7)
+        settings = settings.model_copy(
+            update={
+                "subscription_price": 2000,
+                "early_bird_price": 1500,
+                "early_bird_deadline": deadline,
+            }
+        )
+        user = await uow.users.get_or_create(888888, "abandoned_cart")
+        await uow.payments.create(
+            Payment(
+                id=3000000003,
+                user_id=user.id,
+                amount=1500,
+                status="pending",
+                created_at=deadline - timedelta(days=1),
+            )
+        )
+        await uow.commit()
+
+        service = PaymentService(uow, settings)
+        assert await service.get_price(888888) == 2000
+
+    async def test_get_price_after_deadline_unknown_user_full_price(self, uow, settings):
+        settings = settings.model_copy(
+            update={
+                "subscription_price": 2000,
+                "early_bird_price": 1500,
+                "early_bird_deadline": datetime.now(timezone.utc).replace(tzinfo=None)
+                - timedelta(days=7),
+            }
+        )
+        service = PaymentService(uow, settings)
+        assert await service.get_price(999999) == 2000
+
+    async def test_create_payment_link_uses_early_price(self, uow, settings):
+        deadline = datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(days=7)
+        settings = settings.model_copy(
+            update={
+                "subscription_price": 2000,
+                "early_bird_price": 1500,
+                "early_bird_deadline": deadline,
+            }
+        )
+        user = await uow.users.get_or_create(101010, "veteran2")
+        await uow.payments.create(
+            Payment(
+                id=3000000004,
+                user_id=user.id,
+                amount=1500,
+                status="success",
+                created_at=deadline - timedelta(days=1),
+            )
+        )
+        await uow.commit()
+
+        service = PaymentService(uow, settings)
+        with patch(
+            "infrastructure.prodamus.client.ProdamusClient.create_payment_link",
+            new_callable=AsyncMock,
+            return_value="https://test.payform.ru/?order_id=test",
+        ) as mock_link:
+            order_id, _ = await service.create_payment_link(101010, "veteran2")
+
+        assert mock_link.call_args.kwargs["amount"] == 1500
+        stored = await uow.payments.get_by_order_id(order_id)
+        assert stored.amount == 1500
+
+    async def test_create_payment_link_uses_full_price_for_new_user(self, uow, settings):
+        settings = settings.model_copy(
+            update={
+                "subscription_price": 2000,
+                "early_bird_price": 1500,
+                "early_bird_deadline": datetime.now(timezone.utc).replace(tzinfo=None)
+                - timedelta(days=7),
+            }
+        )
+        service = PaymentService(uow, settings)
+        with patch(
+            "infrastructure.prodamus.client.ProdamusClient.create_payment_link",
+            new_callable=AsyncMock,
+            return_value="https://test.payform.ru/?order_id=test",
+        ) as mock_link:
+            order_id, _ = await service.create_payment_link(202020, "newbie")
+
+        assert mock_link.call_args.kwargs["amount"] == 2000
+        stored = await uow.payments.get_by_order_id(order_id)
+        assert stored.amount == 2000
+
     async def test_process_webhook_falls_back_to_customer_extra(self, uow, settings):
         # When Prodamus webhook is missing our order_id, we should still
         # resolve the pending payment via customer_extra (telegram_id).

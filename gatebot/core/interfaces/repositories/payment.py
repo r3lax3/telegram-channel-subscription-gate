@@ -1,4 +1,5 @@
 from abc import ABC, abstractmethod
+from datetime import datetime
 
 from infrastructure.database.models import Payment
 
@@ -9,6 +10,9 @@ class PaymentRepository(ABC):
 
     @abstractmethod
     async def get_by_order_id(self, order_id: int) -> Payment | None: ...
+
+    @abstractmethod
+    async def has_success_before(self, user_id: int, cutoff: datetime) -> bool: ...
 
     @abstractmethod
     async def get_latest_pending_by_user_id(self, user_id: int) -> Payment | None: ...

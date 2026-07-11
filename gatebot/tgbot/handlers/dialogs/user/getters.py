@@ -19,11 +19,13 @@ PAY_LINK_TTL_SECONDS = 30 * 60
 async def main_menu_getter(
     event_from_user: User,
     settings: FromDishka[Settings],
+    payment_service: FromDishka[PaymentService],
     **kwargs,
 ):
     return {
         "support_link": settings.support_link,
         "first_name": event_from_user.first_name,
+        "price": await payment_service.get_price(event_from_user.id),
     }
 
 

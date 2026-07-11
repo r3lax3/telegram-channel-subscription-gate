@@ -32,6 +32,8 @@ def settings():
         channel_id=-100123456789,
         subscription_price=1234,
         subscription_days=30,
+        early_bird_price=1500,
+        early_bird_deadline=None,
         prodamus_domain="test.payform.ru",
         prodamus_secret_key="test_secret",
         bot_link="https://t.me/TestBot",

@@ -1,4 +1,4 @@
-from datetime import timedelta
+from datetime import datetime, timedelta
 
 from sqlalchemy import func, select, update
 
@@ -19,6 +19,20 @@ class SQLPaymentRepository(BaseRepository, PaymentRepository):
             select(Payment).where(Payment.id == order_id)
         )
         return result.scalar_one_or_none()
+
+    async def has_success_before(self, user_id: int, cutoff: datetime) -> bool:
+        result = await self.session.execute(
+            select(
+                select(Payment.id)
+                .where(
+                    Payment.user_id == user_id,
+                    Payment.status == "success",
+                    Payment.created_at < cutoff,
+                )
+                .exists()
+            )
+        )
+        return bool(result.scalar_one())
 
     async def get_latest_pending_by_user_id(self, user_id: int) -> Payment | None:
         result = await self.session.execute(

@@ -154,3 +154,61 @@ class TestPaymentRepository:
 
         found = await uow.payments.get_by_order_id(1000000003)
         assert found.status == "success"
+
+    async def test_has_success_before(self, uow):
+        user = await uow.users.get_or_create(700004, "earlybird")
+        await uow.commit()
+
+        cutoff = datetime.now(timezone.utc).replace(tzinfo=None)
+        payment = Payment(
+            id=1000000004,
+            user_id=user.id,
+            amount=1500,
+            status="success",
+            created_at=cutoff - timedelta(days=1),
+        )
+        await uow.payments.create(payment)
+        await uow.commit()
+
+        assert await uow.payments.has_success_before(user.id, cutoff) is True
+
+    async def test_has_success_before_ignores_pending(self, uow):
+        user = await uow.users.get_or_create(700005, "pending_only")
+        await uow.commit()
+
+        cutoff = datetime.now(timezone.utc).replace(tzinfo=None)
+        payment = Payment(
+            id=1000000005,
+            user_id=user.id,
+            amount=1500,
+            status="pending",
+            created_at=cutoff - timedelta(days=1),
+        )
+        await uow.payments.create(payment)
+        await uow.commit()
+
+        assert await uow.payments.has_success_before(user.id, cutoff) is False
+
+    async def test_has_success_before_ignores_later_payments(self, uow):
+        user = await uow.users.get_or_create(700006, "latecomer")
+        await uow.commit()
+
+        cutoff = datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(days=30)
+        payment = Payment(
+            id=1000000006,
+            user_id=user.id,
+            amount=2000,
+            status="success",
+            created_at=cutoff + timedelta(days=1),
+        )
+        await uow.payments.create(payment)
+        await uow.commit()
+
+        assert await uow.payments.has_success_before(user.id, cutoff) is False
+
+    async def test_has_success_before_no_payments(self, uow):
+        user = await uow.users.get_or_create(700007, "no_payments")
+        await uow.commit()
+
+        cutoff = datetime.now(timezone.utc).replace(tzinfo=None)
+        assert await uow.payments.has_success_before(user.id, cutoff) is False

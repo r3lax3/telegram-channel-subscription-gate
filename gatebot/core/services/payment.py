@@ -3,7 +3,8 @@ import secrets
 
 from core.config.settings import Settings
 from core.interfaces.repositories.uow import UnitOfWork
-from infrastructure.database.models import Payment
+from core.utils import utcnow
+from infrastructure.database.models import Payment, User
 
 logger = logging.getLogger(__name__)
 
@@ -15,11 +16,28 @@ class PaymentService:
         self.uow = uow
         self.settings = settings
 
+    async def get_price(self, telegram_id: int) -> int:
+        user = await self.uow.users.get_by_telegram_id(telegram_id)
+        return await self._resolve_price(user)
+
+    async def _resolve_price(self, user: User | None) -> int:
+        deadline = self.settings.early_bird_deadline
+        if deadline is None:
+            return self.settings.subscription_price
+        if utcnow() < deadline:
+            return self.settings.early_bird_price
+        if user is not None and await self.uow.payments.has_success_before(
+            user.id, deadline
+        ):
+            return self.settings.early_bird_price
+        return self.settings.subscription_price
+
     async def create_payment_link(self, telegram_id: int, username: str | None) -> tuple[int, str]:
         from sqlalchemy.exc import IntegrityError
         from infrastructure.prodamus.client import ProdamusClient
 
         user = await self.uow.users.get_or_create(telegram_id, username)
+        price = await self._resolve_price(user)
 
         order_id: int | None = None
         for _ in range(_MAX_ORDER_ID_RETRIES):
@@ -27,7 +45,7 @@ class PaymentService:
             payment = Payment(
                 id=candidate,
                 user_id=user.id,
-                amount=self.settings.subscription_price,
+                amount=price,
                 status="pending",
             )
             try:
@@ -45,7 +63,7 @@ class PaymentService:
         client = ProdamusClient(self.settings)
         link = await client.create_payment_link(
             order_id=order_id,
-            amount=self.settings.subscription_price,
+            amount=price,
             customer_extra=telegram_id,
         )
         logger.info("Payment link created for user %s, order %s", telegram_id, order_id)
