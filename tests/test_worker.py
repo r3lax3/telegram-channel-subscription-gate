@@ -30,11 +30,12 @@ class TestSubscriptionWorker:
         assert 111111 in tg_ids
 
     async def test_worker_kicks_expired_users(
-        self, session_factory, mock_bot, settings, uow
+        self, session_factory, mock_bot, settings, uow, session
     ):
         # Create expired user
         user = await uow.users.get_or_create(222222, "expired_user")
         user.is_active = True
+        user.legacy_pricing = True
         user.subscription_end_date = datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(hours=1)
         await uow.users.update(user)
         await uow.commit()
@@ -47,6 +48,11 @@ class TestSubscriptionWorker:
         mock_bot.unban_chat_member.assert_called_with(
             settings.channel_id, 222222, only_if_banned=True
         )
+
+        # Разрыв подписки лишает права на цену «старичка»
+        session.expire_all()
+        user = await uow.users.get_by_telegram_id(222222)
+        assert user.legacy_pricing is False
 
     async def test_worker_handles_errors_gracefully(
         self, session_factory, mock_bot, settings, uow

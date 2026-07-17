@@ -17,6 +17,8 @@ class User(Base):
     subscription_end_date: Mapped[datetime | None] = mapped_column(nullable=True)
     is_active: Mapped[bool] = mapped_column(default=False)
     expiring_notice_sent: Mapped[bool] = mapped_column(default=False, server_default="false")
+    # Право на цену «старичка»; сбрасывается навсегда при разрыве подписки
+    legacy_pricing: Mapped[bool] = mapped_column(default=False, server_default="false")
     created_at: Mapped[datetime] = mapped_column(server_default=func.now())
 
     payments: Mapped[list["Payment"]] = relationship(back_populates="user")
@@ -31,6 +33,7 @@ class Payment(Base):
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=False)
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
     amount: Mapped[int] = mapped_column()
+    days: Mapped[int] = mapped_column(default=30, server_default="30")
     status: Mapped[str] = mapped_column(String(20), default="pending")
     created_at: Mapped[datetime] = mapped_column(server_default=func.now())
 

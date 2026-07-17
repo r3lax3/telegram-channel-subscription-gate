@@ -102,7 +102,7 @@ class TestSubscriptionServiceSync:
         ) as mock_client_cls:
             mock_client = mock_client_cls.return_value
             mock_client.notify = AsyncMock()
-            await service.activate_subscription(333, "carol")
+            await service.activate_subscription(333, "carol", days=30)
             mock_client.notify.assert_awaited_once()
             args = mock_client.notify.await_args.args
             assert args[0] == 333
@@ -116,7 +116,7 @@ class TestSubscriptionServiceSync:
         with patch(
             "core.services.subscription.AstrobotClient"
         ) as mock_client_cls:
-            await service.activate_subscription(444, "dave")
+            await service.activate_subscription(444, "dave", days=30)
             mock_client_cls.assert_not_called()
 
     async def test_set_subscription_end_syncs_when_active(

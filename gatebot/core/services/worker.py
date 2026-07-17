@@ -52,6 +52,7 @@ async def subscription_worker(
                         continue
                     user.is_active = False
                     user.expiring_notice_sent = False
+                    user.legacy_pricing = False
                     await uow.users.update(user)
                     try:
                         await bot.send_message(

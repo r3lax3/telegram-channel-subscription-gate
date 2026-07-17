@@ -26,6 +26,7 @@ class ProdamusClient:
         order_id: int,
         amount: int,
         customer_extra: int,
+        product_name: str | None = None,
     ) -> str:
         expires_at = utcnow() + timedelta(hours=LINK_EXPIRATION_HOURS)
 
@@ -33,7 +34,7 @@ class ProdamusClient:
             "do": "link",
             "products": [
                 {
-                    "name": "Подписка на канал",
+                    "name": product_name or "Подписка на канал",
                     "price": amount,
                     "quantity": 1,
                     "paymentMethod": 4,

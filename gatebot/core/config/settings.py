@@ -18,8 +18,10 @@ class Settings(BaseSettings):
     support_link: str
 
     channel_id: int
-    subscription_price: int = 1234
-    subscription_days: int = 30
+    # Базовая цена руб/месяц; цены тарифов (квартал, полгода) считаются от неё
+    subscription_price: int = 2000
+    # Цена для «старичков» — непрерывная подписка, оплаченная до даты отсечки
+    subscription_price_legacy: int = 1500
 
     prodamus_domain: str = ""
     prodamus_secret_key: str = ""

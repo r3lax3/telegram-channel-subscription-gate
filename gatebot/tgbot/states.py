@@ -4,6 +4,7 @@ from aiogram.fsm.state import StatesGroup, State
 class UserSG(StatesGroup):
     main_menu = State()
     payment_menu = State()
+    payment_link = State()
     subscription_active = State()
 
 

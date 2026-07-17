@@ -31,6 +31,7 @@ async def user_card_getter(
         telegram_id=user.telegram_id,
         username=f"@{user.username}" if user.username else "—",
         is_active="да" if user.is_active else "нет",
+        legacy_pricing="да" if user.legacy_pricing else "нет",
         subscription_end_date=_fmt_dt(user.subscription_end_date),
         created_at=_fmt_dt(user.created_at),
     )
