@@ -2,7 +2,7 @@
 
 ```bash
 git clone <repo> && cd telegram-channel-subscription-gate
-cp example.env .env  # заполнить bot_token, channel_id, owner_ids, prodamus_*, webhook_host
+cp .env.example .env  # заполнить bot_token, channel_id, owner_ids, prodamus_*, webhook_host
 docker compose up -d --build
 ```
 
