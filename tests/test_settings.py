@@ -9,8 +9,8 @@ class TestSettings:
         assert settings.bot_token == "test:token"
         assert settings.owner_ids == [12345678]
         assert settings.channel_id == -100123456789
-        assert settings.subscription_price == 1234
-        assert settings.subscription_days == 30
+        assert settings.subscription_price == 2000
+        assert settings.subscription_price_legacy == 1500
 
     def test_settings_defaults(self, monkeypatch):
         # Clear env vars that .env file sets
@@ -28,6 +28,6 @@ class TestSettings:
             _env_file=None,
         )
         assert s.debug is False
-        assert s.subscription_price == 1234
-        assert s.subscription_days == 30
+        assert s.subscription_price == 2000
+        assert s.subscription_price_legacy == 1500
         assert s.webhook_port == 8080

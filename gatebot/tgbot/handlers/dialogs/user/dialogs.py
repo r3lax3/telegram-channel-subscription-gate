@@ -1,11 +1,12 @@
 from aiogram.enums import ParseMode
 
 from aiogram_dialog import Dialog, Window  # noqa: F401
-from aiogram_dialog.widgets.kbd import Back, SwitchTo, Url
+from aiogram_dialog.widgets.kbd import Back, Column, Select, SwitchTo, Url
 from aiogram_dialog.widgets.text import Const, Format
 
 from tgbot.texts import (
     WELCOME,
+    TARIFF_MENU,
     PAYMENT_INFO,
     SUBSCRIPTION_ACTIVE,
     BTN_BACK,
@@ -17,9 +18,11 @@ from tgbot.texts import (
 from tgbot.states import UserSG
 from .getters import (
     main_menu_getter,
-    payment_menu_getter,
+    tariff_menu_getter,
+    payment_link_getter,
     subscription_active_getter,
 )
+from .handlers import on_tariff_selected
 
 
 dialog = Dialog(
@@ -39,16 +42,35 @@ dialog = Dialog(
         parse_mode=ParseMode.HTML,
     ),
     Window(
+        Format(TARIFF_MENU),
+        Column(
+            Select(
+                Format("{item[label]}"),
+                id="tariff",
+                item_id_getter=lambda item: item["months"],
+                items="tariffs",
+                on_click=on_tariff_selected,
+            ),
+        ),
+        Back(
+            Const(BTN_BACK),
+        ),
+        getter=tariff_menu_getter,
+        state=UserSG.payment_menu,
+    ),
+    Window(
         Const(PAYMENT_INFO),
         Url(
             Const(BTN_PAY_LINK),
             Format("{pay_link}"),
         ),
-        Back(
+        SwitchTo(
             Const(BTN_BACK),
+            id="back_to_tariffs",
+            state=UserSG.payment_menu,
         ),
-        getter=payment_menu_getter,
-        state=UserSG.payment_menu,
+        getter=payment_link_getter,
+        state=UserSG.payment_link,
     ),
     Window(
         Format(SUBSCRIPTION_ACTIVE),

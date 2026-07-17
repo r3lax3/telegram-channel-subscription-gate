@@ -4,14 +4,32 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 from core.services.subscription import SubscriptionService
 from core.services.payment import PaymentService
+from core.services.pricing import TARIFFS, get_tariff, monthly_price, tariff_price
 from infrastructure.database.models import User, Payment
+
+
+class TestPricing:
+    def test_legacy_prices(self):
+        assert [tariff_price(1500, t) for t in TARIFFS] == [1500, 4050, 7650]
+
+    def test_new_client_prices(self):
+        assert [tariff_price(2000, t) for t in TARIFFS] == [2000, 5400, 10200]
+
+    def test_monthly_price(self, settings):
+        assert monthly_price(settings, legacy=True) == 1500
+        assert monthly_price(settings, legacy=False) == 2000
+
+    def test_get_tariff(self):
+        assert get_tariff(3).days == 90
+        assert get_tariff(6).discount_percent == 15
+        assert get_tariff(2) is None
 
 
 @pytest.mark.asyncio
 class TestSubscriptionService:
     async def test_activate_subscription_new_user(self, uow, mock_bot, settings):
         service = SubscriptionService(uow, mock_bot, settings)
-        user = await service.activate_subscription(111111, "alice")
+        user = await service.activate_subscription(111111, "alice", days=30)
 
         assert user.telegram_id == 111111
         assert user.is_active is True
@@ -34,11 +52,57 @@ class TestSubscriptionService:
         await uow.commit()
 
         service = SubscriptionService(uow, mock_bot, settings)
-        await service.activate_subscription(222222, "bob")
+        await service.activate_subscription(222222, "bob", days=90)
 
         user = await uow.users.get_by_telegram_id(222222)
-        expected_end = future_date + timedelta(days=30)
+        expected_end = future_date + timedelta(days=90)
         assert abs((user.subscription_end_date - expected_end).total_seconds()) < 5
+
+    async def test_is_legacy_client(self, uow, mock_bot, settings):
+        user = await uow.users.get_or_create(777777, "grace")
+        user.is_active = True
+        user.subscription_end_date = (
+            datetime.now(timezone.utc).replace(tzinfo=None) + timedelta(days=5)
+        )
+
+        # решает только флаг: он сбрасывается при разрыве подписки
+        # и управляется из админки
+        user.legacy_pricing = True
+        assert SubscriptionService.is_legacy_client(user) is True
+
+        user.legacy_pricing = False
+        assert SubscriptionService.is_legacy_client(user) is False
+
+        assert SubscriptionService.is_legacy_client(None) is False
+
+    async def test_set_legacy_pricing(self, uow, mock_bot, settings):
+        await uow.users.get_or_create(999999, "ivan")
+        await uow.commit()
+
+        service = SubscriptionService(uow, mock_bot, settings)
+        user = await service.set_legacy_pricing(999999, True)
+        assert user.legacy_pricing is True
+
+        user = await service.set_legacy_pricing(999999, False)
+        assert user.legacy_pricing is False
+
+        assert await service.set_legacy_pricing(123, True) is None
+
+    async def test_revoke_clears_legacy_flag(self, uow, mock_bot, settings):
+        user = await uow.users.get_or_create(888888, "heidi")
+        user.is_active = True
+        user.legacy_pricing = True
+        user.subscription_end_date = (
+            datetime.now(timezone.utc).replace(tzinfo=None) + timedelta(days=5)
+        )
+        await uow.users.update(user)
+        await uow.commit()
+
+        service = SubscriptionService(uow, mock_bot, settings)
+        await service.revoke_subscription(888888)
+
+        user = await uow.users.get_by_telegram_id(888888)
+        assert user.legacy_pricing is False
 
     async def test_kick_user(self, uow, mock_bot, settings):
         service = SubscriptionService(uow, mock_bot, settings)
@@ -90,7 +154,9 @@ class TestPaymentService:
             new_callable=AsyncMock,
             return_value="https://test.payform.ru/?order_id=test",
         ):
-            order_id, link = await service.create_payment_link(111111, "alice")
+            order_id, link = await service.create_payment_link(
+                111111, "alice", amount=2000, days=30
+            )
 
         assert isinstance(order_id, int)
         assert "payform.ru" in link

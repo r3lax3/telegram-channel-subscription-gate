@@ -66,7 +66,7 @@ class WebhookServer:
 
             try:
                 await subscription_service.activate_subscription(
-                    user.telegram_id, username=user.username
+                    user.telegram_id, username=user.username, days=payment.days
                 )
             except Exception:
                 logger.exception(

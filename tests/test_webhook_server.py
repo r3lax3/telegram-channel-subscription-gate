@@ -64,7 +64,8 @@ class TestWebhookEndpoints:
         payment = Payment(
             id=3000000001,
             user_id=user.id,
-            amount=1234,
+            amount=2000,
+            days=30,
             status="pending",
         )
         await uow.payments.create(payment)
@@ -79,3 +80,39 @@ class TestWebhookEndpoints:
             },
         )
         assert resp.status == 200
+
+    async def test_webhook_activates_for_paid_days(self, client, uow, session):
+        from datetime import datetime, timedelta, timezone
+
+        from infrastructure.database.models import Payment
+
+        user = await uow.users.get_or_create(222333, "quarter")
+        await uow.commit()
+
+        payment = Payment(
+            id=3000000002,
+            user_id=user.id,
+            amount=4050,
+            days=90,
+            status="pending",
+        )
+        await uow.payments.create(payment)
+        await uow.commit()
+
+        resp = await client.post(
+            "/prodamus/webhook",
+            data={
+                "order_id": "3000000002",
+                "customer_extra": "222333",
+                "payment_status": "success",
+            },
+        )
+        assert resp.status == 200
+
+        session.expire_all()
+        user = await uow.users.get_by_telegram_id(222333)
+        assert user.is_active is True
+        expected_end = (
+            datetime.now(timezone.utc).replace(tzinfo=None) + timedelta(days=90)
+        )
+        assert abs((user.subscription_end_date - expected_end).total_seconds()) < 10

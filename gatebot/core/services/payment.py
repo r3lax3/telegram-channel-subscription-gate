@@ -15,7 +15,14 @@ class PaymentService:
         self.uow = uow
         self.settings = settings
 
-    async def create_payment_link(self, telegram_id: int, username: str | None) -> tuple[int, str]:
+    async def create_payment_link(
+        self,
+        telegram_id: int,
+        username: str | None,
+        amount: int,
+        days: int,
+        product_name: str | None = None,
+    ) -> tuple[int, str]:
         from sqlalchemy.exc import IntegrityError
         from infrastructure.prodamus.client import ProdamusClient
 
@@ -27,7 +34,8 @@ class PaymentService:
             payment = Payment(
                 id=candidate,
                 user_id=user.id,
-                amount=self.settings.subscription_price,
+                amount=amount,
+                days=days,
                 status="pending",
             )
             try:
@@ -45,8 +53,9 @@ class PaymentService:
         client = ProdamusClient(self.settings)
         link = await client.create_payment_link(
             order_id=order_id,
-            amount=self.settings.subscription_price,
+            amount=amount,
             customer_extra=telegram_id,
+            product_name=product_name,
         )
         logger.info("Payment link created for user %s, order %s", telegram_id, order_id)
         return order_id, link

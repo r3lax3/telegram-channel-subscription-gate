@@ -19,14 +19,14 @@ class SubscriptionService:
         self.settings = settings
 
     async def activate_subscription(
-        self, telegram_id: int, username: str | None
+        self, telegram_id: int, username: str | None, days: int
     ) -> User:
         user = await self.uow.users.get_or_create(telegram_id, username)
         now = utcnow()
         if user.subscription_end_date and user.subscription_end_date > now:
-            user.subscription_end_date += timedelta(days=self.settings.subscription_days)
+            user.subscription_end_date += timedelta(days=days)
         else:
-            user.subscription_end_date = now + timedelta(days=self.settings.subscription_days)
+            user.subscription_end_date = now + timedelta(days=days)
         user.is_active = True
         user.expiring_notice_sent = False
         await self.uow.users.update(user)
@@ -43,6 +43,15 @@ class SubscriptionService:
         if user is None or not user.is_active or user.subscription_end_date is None:
             return False
         return user.subscription_end_date > utcnow()
+
+    @staticmethod
+    def is_legacy_client(user: User | None) -> bool:
+        """«Старичок»: непрерывная подписка с даты отсечки (см. миграцию 0003).
+
+        Доверяем флагу legacy_pricing: он сбрасывается при разрыве подписки
+        (кик воркером, отзыв, прошедшая дата) и управляется из админки.
+        """
+        return user is not None and user.legacy_pricing
 
     async def kick_user(self, telegram_id: int) -> bool:
         try:
@@ -72,6 +81,7 @@ class SubscriptionService:
         user.subscription_end_date = end_date
         user.is_active = end_date > now
         if not user.is_active:
+            user.legacy_pricing = False
             await self.kick_user(telegram_id)
         else:
             user.expiring_notice_sent = False
@@ -82,6 +92,22 @@ class SubscriptionService:
         )
         if user.is_active:
             await self._sync_to_astrobot(telegram_id, end_date)
+        return user
+
+    async def set_legacy_pricing(
+        self, telegram_id: int, enabled: bool
+    ) -> User | None:
+        user = await self.uow.users.get_by_telegram_id(telegram_id)
+        if user is None:
+            return None
+        user.legacy_pricing = enabled
+        await self.uow.users.update(user)
+        await self.uow.commit()
+        logger.info(
+            "Legacy pricing %s for user %s",
+            "enabled" if enabled else "disabled",
+            telegram_id,
+        )
         return user
 
     async def _sync_to_astrobot(
@@ -109,6 +135,7 @@ class SubscriptionService:
         user.is_active = False
         user.subscription_end_date = None
         user.expiring_notice_sent = False
+        user.legacy_pricing = False
         await self.uow.users.update(user)
         await self.uow.commit()
         logger.info("Subscription manually revoked for user %s", telegram_id)
