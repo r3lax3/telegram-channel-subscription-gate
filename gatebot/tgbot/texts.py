@@ -115,6 +115,8 @@ ADMIN_EXTEND_PROMPT = (
 ADMIN_EXTEND_BAD_DATE = "Не удалось распознать дату. Введите в формате ГГГГ-ММ-ДД."
 ADMIN_EXTEND_DONE = "Подписка обновлена до {date}."
 ADMIN_REVOKE_DONE = "Подписка отозвана, пользователь удалён из канала."
+ADMIN_LEGACY_ENABLED = "Тариф «старичка» включён — цены считаются от льготной ставки."
+ADMIN_LEGACY_DISABLED = "Тариф «старичка» выключен — цены считаются от обычной ставки."
 
 ADMIN_STATS = (
     "Статистика\n\n"
@@ -137,4 +139,6 @@ BTN_ADMIN_SEND = "Отправить"
 BTN_ADMIN_CLEAR = "Очистить"
 BTN_ADMIN_EXTEND = "Продлить до даты"
 BTN_ADMIN_REVOKE = "Снять подписку"
+BTN_ADMIN_LEGACY_ON = "Включить тариф «старичка»"
+BTN_ADMIN_LEGACY_OFF = "Выключить тариф «старичка»"
 BTN_ADMIN_FIND_ANOTHER = "Другой пользователь"

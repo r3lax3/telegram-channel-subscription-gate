@@ -18,6 +18,8 @@ from tgbot.texts import (
     ADMIN_BROADCAST_EMPTY,
     ADMIN_EXTEND_BAD_DATE,
     ADMIN_EXTEND_DONE,
+    ADMIN_LEGACY_DISABLED,
+    ADMIN_LEGACY_ENABLED,
     ADMIN_REVOKE_DONE,
     ADMIN_USER_NOT_FOUND,
 )
@@ -138,6 +140,34 @@ async def revoke_user_subscription(
         await callback.answer(ADMIN_USER_NOT_FOUND)
         return
     await callback.answer(ADMIN_REVOKE_DONE, show_alert=True)
+
+
+@inject
+async def toggle_legacy_pricing(
+    callback: CallbackQuery,
+    widget: Button,
+    manager: DialogManager,
+    uow: FromDishka[UnitOfWork],
+    subscription_service: FromDishka[SubscriptionService],
+):
+    telegram_id = manager.dialog_data.get("selected_telegram_id")
+    if not telegram_id:
+        await callback.answer(ADMIN_USER_NOT_FOUND)
+        return
+    user = await uow.users.get_by_telegram_id(int(telegram_id))
+    if user is None:
+        await callback.answer(ADMIN_USER_NOT_FOUND)
+        return
+    updated = await subscription_service.set_legacy_pricing(
+        int(telegram_id), not user.legacy_pricing
+    )
+    if updated is None:
+        await callback.answer(ADMIN_USER_NOT_FOUND)
+        return
+    await callback.answer(
+        ADMIN_LEGACY_ENABLED if updated.legacy_pricing else ADMIN_LEGACY_DISABLED,
+        show_alert=True,
+    )
 
 
 @inject

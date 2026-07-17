@@ -31,6 +31,7 @@ from .handlers import (
     clear_broadcast_content,
     extend_date_handler,
     revoke_user_subscription,
+    toggle_legacy_pricing,
     user_search_handler,
 )
 
@@ -110,6 +111,12 @@ dialog = Dialog(
             Const(BTN_ADMIN_REVOKE),
             id="revoke",
             on_click=revoke_user_subscription,
+            when=F["has_user"],
+        ),
+        Button(
+            Format("{legacy_btn}"),
+            id="toggle_legacy",
+            on_click=toggle_legacy_pricing,
             when=F["has_user"],
         ),
         SwitchTo(

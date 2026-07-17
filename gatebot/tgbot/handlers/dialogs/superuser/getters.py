@@ -3,7 +3,13 @@ from dishka.integrations.aiogram_dialog import inject
 
 from core.interfaces.repositories.uow import UnitOfWork
 from core.services.stats import StatsService
-from tgbot.texts import ADMIN_STATS, ADMIN_USER_CARD, ADMIN_USER_NOT_FOUND
+from tgbot.texts import (
+    ADMIN_STATS,
+    ADMIN_USER_CARD,
+    ADMIN_USER_NOT_FOUND,
+    BTN_ADMIN_LEGACY_OFF,
+    BTN_ADMIN_LEGACY_ON,
+)
 
 
 def _fmt_dt(value) -> str:
@@ -20,11 +26,11 @@ async def user_card_getter(
 ):
     telegram_id = dialog_manager.dialog_data.get("selected_telegram_id")
     if not telegram_id:
-        return {"card": ADMIN_USER_NOT_FOUND, "has_user": False}
+        return {"card": ADMIN_USER_NOT_FOUND, "has_user": False, "legacy_btn": ""}
 
     user = await uow.users.get_by_telegram_id(int(telegram_id))
     if user is None:
-        return {"card": ADMIN_USER_NOT_FOUND, "has_user": False}
+        return {"card": ADMIN_USER_NOT_FOUND, "has_user": False, "legacy_btn": ""}
 
     card = ADMIN_USER_CARD.format(
         id=user.id,
@@ -35,7 +41,8 @@ async def user_card_getter(
         subscription_end_date=_fmt_dt(user.subscription_end_date),
         created_at=_fmt_dt(user.created_at),
     )
-    return {"card": card, "has_user": True}
+    legacy_btn = BTN_ADMIN_LEGACY_OFF if user.legacy_pricing else BTN_ADMIN_LEGACY_ON
+    return {"card": card, "has_user": True, "legacy_btn": legacy_btn}
 
 
 @inject

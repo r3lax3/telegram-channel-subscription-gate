@@ -61,26 +61,32 @@ class TestSubscriptionService:
     async def test_is_legacy_client(self, uow, mock_bot, settings):
         user = await uow.users.get_or_create(777777, "grace")
         user.is_active = True
-        user.legacy_pricing = True
         user.subscription_end_date = (
             datetime.now(timezone.utc).replace(tzinfo=None) + timedelta(days=5)
         )
+
+        # решает только флаг: он сбрасывается при разрыве подписки
+        # и управляется из админки
+        user.legacy_pricing = True
         assert SubscriptionService.is_legacy_client(user) is True
 
-        # флаг есть, но подписка истекла — цена уже не «старичковая»
-        user.subscription_end_date = (
-            datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(hours=1)
-        )
-        assert SubscriptionService.is_legacy_client(user) is False
-
-        # активная подписка без флага
-        user.subscription_end_date = (
-            datetime.now(timezone.utc).replace(tzinfo=None) + timedelta(days=5)
-        )
         user.legacy_pricing = False
         assert SubscriptionService.is_legacy_client(user) is False
 
         assert SubscriptionService.is_legacy_client(None) is False
+
+    async def test_set_legacy_pricing(self, uow, mock_bot, settings):
+        await uow.users.get_or_create(999999, "ivan")
+        await uow.commit()
+
+        service = SubscriptionService(uow, mock_bot, settings)
+        user = await service.set_legacy_pricing(999999, True)
+        assert user.legacy_pricing is True
+
+        user = await service.set_legacy_pricing(999999, False)
+        assert user.legacy_pricing is False
+
+        assert await service.set_legacy_pricing(123, True) is None
 
     async def test_revoke_clears_legacy_flag(self, uow, mock_bot, settings):
         user = await uow.users.get_or_create(888888, "heidi")

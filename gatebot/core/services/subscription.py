@@ -48,10 +48,10 @@ class SubscriptionService:
     def is_legacy_client(user: User | None) -> bool:
         """«Старичок»: непрерывная подписка с даты отсечки (см. миграцию 0003).
 
-        Флаг legacy_pricing сбрасывается при истечении/отзыве подписки, поэтому
-        активная подписка + флаг == непрерывность.
+        Доверяем флагу legacy_pricing: он сбрасывается при разрыве подписки
+        (кик воркером, отзыв, прошедшая дата) и управляется из админки.
         """
-        return SubscriptionService.has_active_subscription(user) and user.legacy_pricing
+        return user is not None and user.legacy_pricing
 
     async def kick_user(self, telegram_id: int) -> bool:
         try:
@@ -92,6 +92,22 @@ class SubscriptionService:
         )
         if user.is_active:
             await self._sync_to_astrobot(telegram_id, end_date)
+        return user
+
+    async def set_legacy_pricing(
+        self, telegram_id: int, enabled: bool
+    ) -> User | None:
+        user = await self.uow.users.get_by_telegram_id(telegram_id)
+        if user is None:
+            return None
+        user.legacy_pricing = enabled
+        await self.uow.users.update(user)
+        await self.uow.commit()
+        logger.info(
+            "Legacy pricing %s for user %s",
+            "enabled" if enabled else "disabled",
+            telegram_id,
+        )
         return user
 
     async def _sync_to_astrobot(
