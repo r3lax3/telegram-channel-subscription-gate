@@ -1,3 +1,5 @@
+from datetime import datetime
+
 import pytest
 
 from core.config.settings import Settings
@@ -31,3 +33,26 @@ class TestSettings:
         assert s.subscription_price == 2000
         assert s.subscription_price_legacy == 1500
         assert s.webhook_port == 8080
+        assert s.legacy_promo_until is None
+
+    def test_legacy_promo_until_parsing(self):
+        base = dict(
+            database_url="sqlite:///:memory:",
+            redis_url="redis://localhost:6379",
+            bot_token="test:token",
+            owner_ids=[1],
+            support_link="https://t.me/test",
+            channel_id=-100123,
+            _env_file=None,
+        )
+        # Пустая строка из env = акция выключена
+        s = Settings(legacy_promo_until="", **base)
+        assert s.legacy_promo_until is None
+
+        # Naive-дата хранится как есть (UTC)
+        s = Settings(legacy_promo_until="2026-07-30 23:59:59", **base)
+        assert s.legacy_promo_until == datetime(2026, 7, 30, 23, 59, 59)
+
+        # Дата с таймзоной нормализуется к naive UTC
+        s = Settings(legacy_promo_until="2026-07-31T00:00:00+03:00", **base)
+        assert s.legacy_promo_until == datetime(2026, 7, 30, 21, 0, 0)

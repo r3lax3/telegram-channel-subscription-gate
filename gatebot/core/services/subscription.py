@@ -5,6 +5,7 @@ from aiogram import Bot
 
 from core.config.settings import Settings
 from core.interfaces.repositories.uow import UnitOfWork
+from core.services.pricing import promo_active
 from core.utils import utcnow
 from infrastructure.astrobot.client import AstrobotClient
 from infrastructure.database.models import User
@@ -29,6 +30,8 @@ class SubscriptionService:
             user.subscription_end_date = now + timedelta(days=days)
         user.is_active = True
         user.expiring_notice_sent = False
+        if promo_active(self.settings, now):
+            user.legacy_pricing = True
         await self.uow.users.update(user)
         await self.uow.commit()
         logger.info(
@@ -46,10 +49,11 @@ class SubscriptionService:
 
     @staticmethod
     def is_legacy_client(user: User | None) -> bool:
-        """«Старичок»: непрерывная подписка с даты отсечки (см. миграцию 0003).
+        """«Старичок»: сохраняет старую цену, пока подписка непрерывна.
 
-        Доверяем флагу legacy_pricing: он сбрасывается при разрыве подписки
-        (кик воркером, отзыв, прошедшая дата) и управляется из админки.
+        Флаг legacy_pricing ставится: бэкфиллом в миграции 0003, при оплате
+        во время акции (settings.legacy_promo_until) и из админки.
+        Сбрасывается при разрыве подписки (кик воркером, отзыв, прошедшая дата).
         """
         return user is not None and user.legacy_pricing
 

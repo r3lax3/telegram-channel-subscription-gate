@@ -4,7 +4,13 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 from core.services.subscription import SubscriptionService
 from core.services.payment import PaymentService
-from core.services.pricing import TARIFFS, get_tariff, monthly_price, tariff_price
+from core.services.pricing import (
+    TARIFFS,
+    get_tariff,
+    monthly_price,
+    promo_active,
+    tariff_price,
+)
 from infrastructure.database.models import User, Payment
 
 
@@ -18,6 +24,35 @@ class TestPricing:
     def test_monthly_price(self, settings):
         assert monthly_price(settings, legacy=True) == 1500
         assert monthly_price(settings, legacy=False) == 2000
+
+    def test_promo_active(self, settings):
+        assert promo_active(settings) is False
+
+        now = datetime.now(timezone.utc).replace(tzinfo=None)
+        promo_settings = settings.model_copy(
+            update={"legacy_promo_until": now + timedelta(days=1)}
+        )
+        assert promo_active(promo_settings) is True
+
+        ended_settings = settings.model_copy(
+            update={"legacy_promo_until": now - timedelta(days=1)}
+        )
+        assert promo_active(ended_settings) is False
+
+    def test_monthly_price_during_promo(self, settings):
+        now = datetime.now(timezone.utc).replace(tzinfo=None)
+        promo_settings = settings.model_copy(
+            update={"legacy_promo_until": now + timedelta(days=1)}
+        )
+        # Во время акции старую цену видят и новые пользователи
+        assert monthly_price(promo_settings, legacy=False) == 1500
+        assert monthly_price(promo_settings, legacy=True) == 1500
+
+        ended_settings = settings.model_copy(
+            update={"legacy_promo_until": now - timedelta(days=1)}
+        )
+        assert monthly_price(ended_settings, legacy=False) == 2000
+        assert monthly_price(ended_settings, legacy=True) == 1500
 
     def test_get_tariff(self):
         assert get_tariff(3).days == 90
@@ -41,6 +76,40 @@ class TestSubscriptionService:
         assert fetched.subscription_end_date is not None
         expected_end = datetime.now(timezone.utc).replace(tzinfo=None) + timedelta(days=30)
         assert abs((fetched.subscription_end_date - expected_end).total_seconds()) < 5
+
+    async def test_activate_during_promo_sets_legacy(self, uow, mock_bot, settings):
+        now = datetime.now(timezone.utc).replace(tzinfo=None)
+        promo_settings = settings.model_copy(
+            update={"legacy_promo_until": now + timedelta(days=7)}
+        )
+        service = SubscriptionService(uow, mock_bot, promo_settings)
+        user = await service.activate_subscription(333333, "carol", days=30)
+        assert user.legacy_pricing is True
+
+    async def test_activate_after_promo_keeps_flag_off(self, uow, mock_bot, settings):
+        now = datetime.now(timezone.utc).replace(tzinfo=None)
+        ended_settings = settings.model_copy(
+            update={"legacy_promo_until": now - timedelta(days=1)}
+        )
+        service = SubscriptionService(uow, mock_bot, ended_settings)
+        user = await service.activate_subscription(444444, "dave", days=30)
+        assert user.legacy_pricing is False
+
+    async def test_activate_after_promo_preserves_existing_legacy(
+        self, uow, mock_bot, settings
+    ):
+        user = await uow.users.get_or_create(555555, "erin")
+        user.legacy_pricing = True
+        await uow.users.update(user)
+        await uow.commit()
+
+        now = datetime.now(timezone.utc).replace(tzinfo=None)
+        ended_settings = settings.model_copy(
+            update={"legacy_promo_until": now - timedelta(days=1)}
+        )
+        service = SubscriptionService(uow, mock_bot, ended_settings)
+        user = await service.activate_subscription(555555, "erin", days=30)
+        assert user.legacy_pricing is True
 
     async def test_activate_subscription_extends_existing(self, uow, mock_bot, settings):
         # Create user with existing active subscription
