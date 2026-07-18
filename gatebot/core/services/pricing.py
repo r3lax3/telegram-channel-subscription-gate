@@ -1,6 +1,8 @@
 from dataclasses import dataclass
+from datetime import datetime
 
 from core.config.settings import Settings
+from core.utils import utcnow
 
 
 @dataclass(frozen=True)
@@ -25,8 +27,19 @@ def get_tariff(months: int) -> Tariff | None:
     return None
 
 
+def promo_active(settings: Settings, now: datetime | None = None) -> bool:
+    """Акция «успей купить по старой цене»: активна, пока now < legacy_promo_until."""
+    if settings.legacy_promo_until is None:
+        return False
+    if now is None:
+        now = utcnow()
+    return now < settings.legacy_promo_until
+
+
 def monthly_price(settings: Settings, legacy: bool) -> int:
-    return settings.subscription_price_legacy if legacy else settings.subscription_price
+    if legacy or promo_active(settings):
+        return settings.subscription_price_legacy
+    return settings.subscription_price
 
 
 def tariff_price(monthly: int, tariff: Tariff) -> int:
